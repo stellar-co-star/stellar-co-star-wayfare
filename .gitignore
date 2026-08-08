@@ -1,9 +1,13 @@
-# Build output
+# Build output.
+#
+# The binary names are anchored to the repo root on purpose: an unanchored
+# "stellar-co-star-stellar-co-star-stellar-co-star-wayfared" would also match cmd/stellar-co-star-stellar-co-star-stellar-co-star-wayfared, silently excluding the source
+# directory that builds it.
 /bin/
-dist/
-stellar-co-star-stellar-co-star-stellar-co-star-wayfare
-ladder
-stellar-co-star-stellar-co-star-stellar-co-star-wayfared
+/dist/
+/stellar-co-star-stellar-co-star-stellar-co-star-wayfare
+/stellar-co-star-stellar-co-star-stellar-co-star-wayfared
+/ladder
 
 # Test and coverage artifacts
 *.out
