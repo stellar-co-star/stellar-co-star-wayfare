@@ -18,10 +18,10 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/Fury03/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/asset"
-	"github.com/Fury03/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/dex"
-	"github.com/Fury03/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/refrate"
-	"github.com/Fury03/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/route"
+	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/asset"
+	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/dex"
+	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/refrate"
+	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/route"
 )
 
 // corridor names a destination token and the fiat currency it claims to track.

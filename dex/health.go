@@ -6,7 +6,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/Fury03/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/asset"
+	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/asset"
 )
 
 // BookHealth summarises whether a market is functioning.

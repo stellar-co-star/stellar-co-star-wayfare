@@ -6,7 +6,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/Fury03/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/asset"
+	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/asset"
 )
 
 // ngncTOML reproduces the fields observed in the live stellar.toml served by

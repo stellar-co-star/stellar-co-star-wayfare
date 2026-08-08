@@ -1,4 +1,4 @@
-module github.com/Fury03/stellar-co-star-stellar-co-star-stellar-co-star-wayfare
+module github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare
 
 go 1.22.2
 

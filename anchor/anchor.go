@@ -27,7 +27,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/Fury03/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/asset"
+	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/asset"
 )
 
 // Currency is one entry from the [[CURRENCIES]] array of a stellar.toml.

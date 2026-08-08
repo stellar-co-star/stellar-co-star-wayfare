@@ -33,7 +33,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/Fury03/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/asset"
+	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/asset"
 )
 
 // DefaultHorizonURL is SDF's public mainnet Horizon instance.
