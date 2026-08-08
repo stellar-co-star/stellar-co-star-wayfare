@@ -1,3 +1,16 @@
+# Build output
+/bin/
 dist/
 stellar-co-star-stellar-co-star-stellar-co-star-wayfare
+ladder
+stellar-co-star-stellar-co-star-stellar-co-star-wayfared
+
+# Test and coverage artifacts
 *.out
+coverage.html
+
+# Logs
+*.log
+
+# Editor and OS
+.DS_Store
