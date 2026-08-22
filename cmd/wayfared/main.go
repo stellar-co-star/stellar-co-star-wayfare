@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare"
+	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/checks"
 	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/dex"
 	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/monitor"
 	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/refrate"
@@ -143,6 +144,7 @@ func main() {
 			Store:        store,
 			Timeout:      *timeout,
 			HistoryFirst: *histFirst,
+			Checks:       &checks.Runner{HorizonURL: *horizon},
 		}
 		httpSrv := &http.Server{
 			Addr:              *addr,
