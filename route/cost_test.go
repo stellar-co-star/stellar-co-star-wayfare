@@ -272,6 +272,8 @@ func TestCostBlockJSONShape(t *testing.T) {
 		}
 	}
 
+	// The only determined component (fx_loss) carries amount and pct as
+	// strings; the three undetermined ones carry none, only a reason.
 	// Only fx_loss is determined — it is computed from the observed effective
 	// rate against mid. The other four components have no observation or
 	// computation behind them, so each must carry a reason and no number:
