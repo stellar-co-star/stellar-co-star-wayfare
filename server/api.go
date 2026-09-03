@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -125,6 +126,10 @@ func (s *Server) handleCorridor(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != http.MethodGet {
 		writeError(w, r, http.StatusMethodNotAllowed, "only GET is supported")
+		return
+	}
+	if err := checkParams(r, "from", "to", "sizes", "live"); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -261,13 +266,9 @@ func (s *Server) handleCorridor(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAssets(w http.ResponseWriter, r *http.Request) {
-	// corridorState is the pricing history for a receive asset. The UI needs
-	// this to build a corridor selector that reflects what has actually been
-	// measured rather than what is theoretically possible.
-	type corridorState struct {
-		HasHistory    bool   `json:"has_history"`
-		LastIntegrity string `json:"last_integrity,omitempty"`
-		LastMeasured  string `json:"last_measured,omitempty"`
+	if err := checkParams(r); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 	type entry struct {
 		route.AssetJSON
@@ -328,63 +329,51 @@ func (s *Server) handleAssets(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{
-		"status": "ok",
-		"data":   s.healthData(r.Context()),
-	})
-}
-
-// healthData returns the newest stored run per corridor and its age, or nil
-// when no history exists to describe.
-//
-// A health probe answers two different questions: is the process alive, and
-// is the data it serves current? /healthz has always answered the first; the
-// second is the one at risk on a -history-first deployment, whose served
-// history is as old as the image it was built from. nil (JSON null) is the
-// explicit unknown — no store, or no stored run — never a fabricated zero or
-// "now".
-func (s *Server) healthData(ctx context.Context) map[string]healthCorridorJSON {
-	if s.Store == nil {
-		return nil
+	if err := checkParams(r); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
-	corridors, err := s.Store.Corridors(ctx)
-	if err != nil || len(corridors) == 0 {
-		return nil
-	}
-	now := time.Now().UTC()
-	out := make(map[string]healthCorridorJSON, len(corridors))
-	for _, c := range corridors {
-		rec, err := s.Store.Latest(ctx, c)
-		if err != nil || rec == nil {
-			continue
-		}
-		age := now.Sub(rec.RecordedAt.UTC())
-		if age < 0 {
-			age = 0
-		}
-		out[c] = healthCorridorJSON{
-			RecordedAt: rec.RecordedAt.UTC().Format(time.RFC3339),
-			AgeSeconds: int64(age.Seconds()),
-			AgeHuman:   humanAge(age),
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
-// healthCorridorJSON is one corridor's newest stored run, as reported on
-// /healthz.
-type healthCorridorJSON struct {
-	RecordedAt string `json:"recorded_at"`
-	AgeSeconds int64  `json:"age_seconds"`
-	AgeHuman   string `json:"age_human"`
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // helpers --------------------------------------------------------------------
 
 const maxSizes = 24
+
+// checkParams rejects any query parameter outside the endpoint's allow-list.
+//
+// A typo like ?tp=NGNC used to be silently ignored — the request then
+// measured the default corridor and answered with a confident body that was
+// not what was asked for. Strict handling turns that silent wrong answer
+// into an explicit error, which is the whole point of the API-surface
+// hardening: a client that asks the wrong question is told so, not given a
+// plausible answer to a different question.
+func checkParams(r *http.Request, allowed ...string) error {
+	ok := make(map[string]bool, len(allowed))
+	for _, a := range allowed {
+		ok[a] = true
+	}
+	var unknown []string
+	for k := range r.URL.Query() {
+		if !ok[k] {
+			unknown = append(unknown, k)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	sort.Strings(unknown)
+	quoted := make([]string, len(unknown))
+	for i, k := range unknown {
+		quoted[i] = fmt.Sprintf("%q", k)
+	}
+	if len(allowed) == 0 {
+		return fmt.Errorf("unknown query parameter(s): %s; this endpoint accepts none",
+			strings.Join(quoted, ", "))
+	}
+	return fmt.Errorf("unknown query parameter(s): %s; supported parameters are %s",
+		strings.Join(quoted, ", "), strings.Join(allowed, ", "))
+}
 
 func param(r *http.Request, key, fallback string) string {
 	if v := strings.TrimSpace(r.URL.Query().Get(key)); v != "" {

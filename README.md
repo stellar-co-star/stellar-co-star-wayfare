@@ -464,6 +464,10 @@ Bodies are compact by default; append `&pretty=1` (or `?pretty` on an
 endpoint with no other parameters) to any of the JSON endpoints to get an
 indented body for a human reader.
 
+Query parameters are strict: a parameter an endpoint does not recognise is a
+`400`, so a typo like `?tp=NGNC` fails loudly instead of silently measuring
+the default corridor.
+
 Beyond the contracts above, one field to know: **`live`** is on every response.
 `false` means the reading came from history because a live measurement failed,
 and `stale` then carries its age. With no stored run, the request errors —
