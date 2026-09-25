@@ -150,6 +150,9 @@ LAYER 2 — DETERMINISTIC CALCULATION                               [live]
   spread, depth, price impact, concentration, cost decomposition
                                              [implemented, not yet reachable]
 
+  Market-structure vocabulary and current limits:
+  [docs/market-structure.md](docs/market-structure.md)
+
         │
         ▼
 
