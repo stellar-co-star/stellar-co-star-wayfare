@@ -27,6 +27,7 @@
 services:
   - type: web
     name: stellar-co-star-stellar-co-star-stellar-co-star-wayfare
+    # Staging deployments use a separate Render service (e.g. name: stellar-co-star-stellar-co-star-stellar-co-star-wayfare-staging) with plan: free and -schedule=0.
     runtime: docker
     plan: free
     region: frankfurt

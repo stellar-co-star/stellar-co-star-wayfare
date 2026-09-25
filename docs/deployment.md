@@ -1,5 +1,15 @@
 # Deployment
 
+## The Staging Story
+
+Wayfare does not maintain a dedicated persistent staging environment running automated background schedulers, because corridor monitoring relies on deterministic recorded histories or live probes against production upstreams. 
+
+When testing changes in a staging capacity:
+- **Fly.io Staging**: Deploy with a separate app name (e.g., `stellar-co-star-stellar-co-star-stellar-co-star-wayfare-staging`) using `fly.toml` with `auto_stop_machines = true` if continuous persistence is not required for the transient test.
+- **Render Staging**: Spin up a separate web service on Render pointing to the repository, utilizing the same immutable container image (`Dockerfile`) and running with `-schedule=0 -history-first`.
+
+
+
 How to run Wayfare continuously, what it costs, and what to check afterwards.
 
 The target is [Fly.io](https://fly.io). Nothing here is Fly-specific except
