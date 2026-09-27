@@ -535,7 +535,10 @@ The interface is one embedded file, `server/index.html`. Its light and dark
 colour schemes are recorded, with measured contrast ratios, in
 **[docs/qa/artifacts/272-color-schemes.md](docs/qa/artifacts/272-color-schemes.md)**;
 the browser QA harness that produced the computed colours lives in
-[docs/qa/README.md](docs/qa/README.md).
+[docs/qa/README.md](docs/qa/README.md). The interactive state contract —
+focus, hover, active, disabled, and the reduced-motion behaviour — is
+specified in **[docs/ui-states.md](docs/ui-states.md)** and pinned by source
+text in `go test`.
 
 ---
 
