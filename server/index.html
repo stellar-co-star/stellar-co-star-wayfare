@@ -5,6 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Wayfare — corridor integrity monitor</title>
 <style>
+  /*
+   * Design tokens (issue #281). Three layers, no build step.
+   *
+   *   1. Primitives  — the raw palette and the non-colour scales, one per step.
+   *   2. Semantic    — role names that components actually paint with (surface,
+   *                    ink, line, and the state families below).
+   *   3. Aliases     — the historical short names (--bg, --ok, ...) kept so the
+   *                    rule bodies below stay untouched.
+   *
+   * The dark block now overrides ONLY primitives; every semantic and alias is a
+   * var() chain resolved at computed-value time, so a palette swap propagates
+   * without re-listing roles. This replaces the old fourteen-token copy-paste,
+   * where a token added to light but forgotten in dark silently disagreed —
+   * exactly the class of drift a token layer exists to prevent.
+   *
+   * The state families encode the taxonomy the glossary defines (docs/
+   * glossary.md): structural integrity, pricing severity, check outcome, data
+   * provenance and availability are five separate questions. Distinct names
+   * keep a future contributor from reusing one family's colour for another,
+   * which is how a structural state would start reading as a severity.
+   */
   :root {
     --brand-navy: #0F172A;
     --brand-teal: #10B981;
@@ -59,6 +80,11 @@
     --radius-lg: 14px;
     --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.05), 0 8px 24px rgba(15, 23, 42, 0.04);
   }
+  /*
+   * Dark is a primitives-only swap. Nothing here names a role: the semantic and
+   * alias layers resolve through var() and follow automatically, so the two
+   * schemes cannot disagree about what --check-undetermined means.
+   */
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #020817;
@@ -253,6 +279,36 @@
     font-size: .85rem; color: var(--muted);
     border-left: 3px solid var(--border); padding-left: .7rem;
   }
+
+  /* Empty states (issue #300) --------------------------------------------
+   * One component, deliberately distinct per cause. An empty state is an
+   * *absence of data*, so it is rendered neutral (a grey `?`/`∅`/`—` glyph),
+   * never with a severity colour — "nothing was measured here" must not read
+   * as "this is bad." Each variant carries a word and a glyph, not colour
+   * alone (WCAG SC 1.4.1), and stays keyboard-reachable because it is plain
+   * text with no interactive parts. */
+  .empty-state {
+    display: flex; gap: .8rem; align-items: flex-start;
+    padding: .2rem 0;
+  }
+  .empty-state .es-glyph {
+    flex: none; display: inline-flex; align-items: center; justify-content: center;
+    width: 2rem; height: 2rem; border-radius: var(--radius-md);
+    border: 1px solid var(--availability-undetermined);
+    color: var(--availability-undetermined);
+    font: var(--weight-bold) 1.1rem/1 var(--font-mono);
+  }
+  .empty-state .es-copy { min-width: 0; }
+  .empty-state .es-title {
+    font-weight: var(--weight-semibold); margin: 0; color: var(--ink);
+  }
+  .empty-state .es-body {
+    margin: .15rem 0 0; color: var(--muted); font-size: var(--text-base);
+  }
+  /* A no-market empty state belongs to the integrity family, so it borrows
+   * that role's glyph but stays neutral — the distinction (structural absence,
+   * not a bad price) is carried by the copy, per docs/state-vocabulary.md. */
+  .empty-state.es-structural .es-glyph { border-color: var(--muted); color: var(--muted); }
 </style>
 </head>
 <body>
@@ -312,6 +368,32 @@ const formatPct = (s) => {
   const n = parseFloat(s);
   return isNaN(n) ? s : n.toFixed(2);
 };
+
+// emptyState renders a labelled absence of data (issue #300). Six distinct
+// causes route through this one component so "empty" is never ambiguous: the
+// caller names the cause in the title and explains it in the body. It is
+// deliberately neutral — an absence of data is not a verdict — so it uses the
+// availability-undetermined role, never a severity colour. The glyph is
+// aria-hidden because the words already say everything: it is decoration, and
+// removing colour (or the glyph) leaves a fully meaningful state (WCAG SC 1.4.1).
+const emptyState = ({ glyph = '—', title, body = '', structural = false }) =>
+  `<div class="empty-state${structural ? ' es-structural' : ''}">
+    <span class="es-glyph" aria-hidden="true">${esc(glyph)}</span>
+    <div class="es-copy">
+      <p class="es-title">${esc(title)}</p>
+      ${body ? `<p class="es-body">${esc(body)}</p>` : ''}
+    </div>
+  </div>`;
+
+// capabilityGap is the one empty state that is not an absence of *data* but an
+// absence of *implementation*: a request this build cannot serve at all. It is
+// kept visually distinct (its own glyph) so it is never mistaken for a corridor
+// that was measured and found empty.
+const capabilityGap = (what) => emptyState({
+  glyph: '∅',
+  title: 'Not available in this build',
+  body: what,
+});
 
 const badgeClass = (i) =>
   i === 'NO-MARKET' ? 'b-nomarket' : i === 'DERIVATIVE' ? 'b-derivative' : 'b-direct';
@@ -391,6 +473,16 @@ async function loadAssets() {
 function buildSelector(data) {
   const sel = $('to');
   const assets = (data.assets || []).filter(a => a.can_be_destination);
+  if (assets.length === 0) {
+    // Nothing measurable: say so as its own state rather than leaving an empty
+    // dropdown that looks like a loading bug (issue #300).
+    sel.innerHTML = '<option value="" disabled selected>No corridors available</option>';
+    $('out').innerHTML = `<div class="panel">${emptyState({
+      title: 'No corridors to measure',
+      body: 'This instance has verified no destination assets.',
+    })}</div>`;
+    return;
+  }
   // Sort: corridors with history first, then alphabetically.
   assets.sort((a, b) => {
     const ah = a.state && a.state.has_history ? 0 : 1;
@@ -463,12 +555,22 @@ function showErrorBanner(message) {
 
 async function measure() {
   const to = $('to').value;
+  if (!to) {
+    // No corridor selected is its own empty state — distinct from a corridor
+    // that was measured and returned nothing (issue #300).
+    $('out').innerHTML =
+      `<div class="panel">${emptyState({
+        title: 'No corridor selected',
+        body: 'Choose a destination asset above, then measure it.',
+      })}</div>`;
+    return;
+  }
   $('run').disabled = true;
   $('status').textContent = 'measuring live — a full ladder is a dozen round trips…';
   try {
     const r = await fetch(`/api/corridor?to=${encodeURIComponent(to)}&live=1`);
     const data = await r.json();
-    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    if (!r.ok) throw Object.assign(new Error(data.error || `HTTP ${r.status}`), { code: data.code });
     render(data);
     $('status').textContent = '';
   } catch (e) {
@@ -477,6 +579,19 @@ async function measure() {
   } finally {
     $('run').disabled = false;
   }
+}
+
+// errorPanel turns a fetch/measurement failure into the right absence. A code
+// the server uses to say "this build cannot service that request at all" is a
+// capability gap, not a corridor that measured empty, so it renders as one;
+// everything else is a genuine unavailable-data error naming the cause.
+function errorPanel(prefix, e) {
+  if (e.code === 'unknown_receive_asset') {
+    return `<div class="panel">${capabilityGap(
+      'Wayfare measures a fixed set of verified corridors and cannot price an ' +
+      'arbitrary asset. Choose a verified destination from the selector.')}</div>`;
+  }
+  return `<div class="panel err">${esc(prefix)}: ${esc(e.message)}</div>`;
 }
 
 function render(d) {
@@ -531,8 +646,16 @@ function unscoredBlock(d) {
 // never falls back to "the best of a bad set".
 function recommendationBlock(d) {
   if (d.integrity === 'NO-MARKET') {
-    return `<div class="rec-none">No route exists at any size tested.
-      There is nothing to recommend, and nothing to price.</div>`;
+    // A no-market corridor is a structural absence, not a bad price, so it
+    // renders as the no-market empty state rather than a red recommendation
+    // box — the distinction issue #299 makes binding (issue #300).
+    return emptyState({
+      glyph: '∅',
+      structural: true,
+      title: 'No market exists',
+      body: 'No route reaches this destination at any size tested. There is no ' +
+        'price to grade here, which is a different result from an expensive one.',
+    });
   }
   if (!d.recommended) {
     return `<div class="rec-none">No recommendation. Every size tested is graded
@@ -837,10 +960,13 @@ function renderTrend() {
   if (runs.length === 0) {
     parts.push(`<div class="panel">
       <h2>Trend &mdash; ${esc(d.corridor)}</h2>
-      <p>No stored runs for this corridor yet. The scheduler records a run
-      every 6 hours, and the trend appears as history exists. Nothing is
-      interpolated, estimated, or borrowed from another corridor in the
-      meantime.</p></div>`);
+      ${emptyState({
+        glyph: '…',
+        title: 'No stored runs yet',
+        body: 'The scheduler records a run every 6 hours, and the trend appears ' +
+          'as history exists. Nothing is interpolated, estimated, or borrowed ' +
+          'from another corridor in the meantime.',
+      })}</div>`);
     $('out').innerHTML = parts.join('');
     return;
   }
@@ -1079,10 +1205,18 @@ $('run').addEventListener('click', measure);
 $('trend').addEventListener('click', loadTrend);
 
 async function loadCorridor(to) {
+  if (!to) {
+    $('out').innerHTML =
+      `<div class="panel">${emptyState({
+        title: 'No corridor selected',
+        body: 'Choose a destination asset above.',
+      })}</div>`;
+    return;
+  }
   try {
     const r = await fetch(`/api/corridor?to=${encodeURIComponent(to)}`);
     const data = await r.json();
-    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    if (!r.ok) throw Object.assign(new Error(data.error || `HTTP ${r.status}`), { code: data.code });
     render(data);
   } catch (e) {
     showErrorBanner(
