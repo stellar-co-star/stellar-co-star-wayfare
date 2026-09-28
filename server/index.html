@@ -69,13 +69,25 @@
     --text-md: .94rem;
     --text-lg: 1.15rem;
     --text-xl: 1.35rem;
-    --space-1: .25rem;
-    --space-2: .5rem;
-    --space-3: .75rem;
-    --space-4: 1rem;
-    --space-5: 1.25rem;
-    --space-6: 1.5rem;
-    --space-8: 2rem;
+    /* Spacing scale (issue #283): a single 4px-based ladder, referenced by
+       every padding, margin and gap in the stylesheet instead of the dozen
+       ad-hoc rem values that used to sit in the rule bodies. The interface is
+       compact, so the ladder starts at 4px; a zero gap is still spelled 0. */
+    --space-1: .25rem;   /*  4px */
+    --space-2: .5rem;    /*  8px */
+    --space-3: .75rem;   /* 12px */
+    --space-4: 1rem;     /* 16px */
+    --space-5: 1.25rem;  /* 20px */
+    --space-6: 1.5rem;   /* 24px */
+    --space-7: 1.75rem;  /* 28px */
+    --space-8: 2rem;     /* 32px */
+    --space-10: 2.5rem;  /* 40px */
+    --space-12: 3rem;    /* 48px */
+    --space-20: 5rem;    /* 80px */
+    /* Radius scale (issue #283): four steps. xs is the chip/state corner, sm
+       the control and callout corner, md the panel corner, lg the larger
+       surfaces. A circle (50%) is a shape, not a step, so it stays literal. */
+    --radius-xs: 4px;
     --radius-sm: 6px;
     --radius-md: 10px;
     --radius-lg: 14px;
@@ -123,13 +135,13 @@
     color: var(--ink);
     font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  .wrap { max-width: 900px; margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
-  header { border-bottom: 1px solid var(--border); padding-bottom: 1.25rem; margin-bottom: 1.75rem; }
-  h1 { font-size: var(--text-xl); margin: 0 0 .3rem; letter-spacing: -0.02em; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: var(--space-10) var(--space-5) var(--space-20); }
+  header { border-bottom: 1px solid var(--border); padding-bottom: var(--space-5); margin-bottom: var(--space-7); }
+  h1 { font-size: var(--text-xl); margin: 0 0 var(--space-1); letter-spacing: -0.02em; }
   .sub { color: var(--muted); font-size: var(--text-md); margin: 0; }
-  .controls { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin-bottom: 1.5rem; }
+  .controls { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; margin-bottom: var(--space-6); }
   select, button {
-    font: inherit; padding: .65rem .85rem; border-radius: var(--radius-sm);
+    font: inherit; padding: var(--space-3) var(--space-3); border-radius: var(--radius-sm);
     border: 1px solid var(--border); background: var(--panel); color: var(--ink);
     transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
   }
@@ -178,7 +190,7 @@
      takes keyboard focus and must say so (issue #293 made it focusable, this
      makes the focus visible). */
   a:focus-visible {
-    outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px;
+    outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-xs);
   }
   button:disabled, select:disabled {
     opacity: .55; cursor: default; color: var(--muted);
@@ -207,13 +219,13 @@
   }
   .panel {
     background: var(--panel); border: 1px solid var(--border);
-    border-radius: 10px; padding: 1.15rem 1.25rem; margin-bottom: 1.25rem;
+    border-radius: var(--radius-md); padding: var(--space-5) var(--space-5); margin-bottom: var(--space-5);
   }
-  .integrity-card { display: grid; grid-template-columns: auto 1fr; gap: .75rem 1rem; align-items: start; margin-bottom: .35rem; }
+  .integrity-card { display: grid; grid-template-columns: auto 1fr; gap: var(--space-3) var(--space-4); align-items: start; margin-bottom: var(--space-1); }
   .badge {
-    display: inline-flex; align-items: center; gap: .45rem; width: fit-content;
+    display: inline-flex; align-items: center; gap: var(--space-2); width: fit-content;
     font: 700 .78rem/1 var(--mono); letter-spacing: .06em;
-    padding: .55rem .7rem; border-radius: 7px; border: 2px solid currentColor;
+    padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); border: 2px solid currentColor;
     text-transform: uppercase; white-space: nowrap;
     box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.02);
   }
@@ -226,21 +238,21 @@
   .b-nomarket::before { content: "∅"; }
   .integrity-copy { min-width: 0; }
   .integrity-title { font-weight: 700; margin: 0; }
-  .integrity-help { color: var(--muted); font-size: .88rem; margin: .15rem 0 0; }
-  .integrity-dependency { font-family: var(--mono); font-size: .8rem; margin: .35rem 0 0; color: var(--warn); }
+  .integrity-help { color: var(--muted); font-size: .88rem; margin: var(--space-1) 0 0; }
+  .integrity-dependency { font-family: var(--mono); font-size: .8rem; margin: var(--space-1) 0 0; color: var(--warn); }
   .integrity-card .badge[title] { cursor: help; }
-  @media (max-width: 520px) { .integrity-card { grid-template-columns: 1fr; gap: .45rem; } }
-  .finding { font-size: 1.02rem; margin: .85rem 0 0; }
+  @media (max-width: 520px) { .integrity-card { grid-template-columns: 1fr; gap: var(--space-2); } }
+  .finding { font-size: 1.02rem; margin: var(--space-3) 0 0; }
   .rec-none {
-    margin-top: .9rem; padding: .7rem .85rem; border-radius: 6px;
+    margin-top: var(--space-4); padding: var(--space-3) var(--space-3); border-radius: var(--radius-sm);
     border: 1px solid var(--bad); color: var(--bad); font-size: .9rem;
   }
   .rec-some {
-    margin-top: .9rem; padding: .7rem .85rem; border-radius: 6px;
+    margin-top: var(--space-4); padding: var(--space-3) var(--space-3); border-radius: var(--radius-sm);
     border: 1px solid var(--ok); color: var(--ok); font-size: .9rem;
   }
   table { width: 100%; border-collapse: collapse; font-size: .88rem; }
-  th, td { text-align: right; padding: .42rem .5rem; border-bottom: 1px solid var(--grid); }
+  th, td { text-align: right; padding: var(--space-2) var(--space-2); border-bottom: 1px solid var(--grid); }
   th:first-child, td:first-child, th:last-child, td:last-child { text-align: left; }
   th { color: var(--muted); font-weight: 550; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
   td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
@@ -248,12 +260,12 @@
   .v-poor { color: var(--warn); }
   .v-good, .v-fair { color: var(--ok); }
   .scroll { overflow-x: auto; }
-  .finding-row { display: flex; gap: .7rem; align-items: baseline; padding: .5rem 0;
+  .finding-row { display: flex; gap: var(--space-3); align-items: baseline; padding: var(--space-2) 0;
                  border-bottom: 1px solid var(--grid); }
   .finding-row:last-child { border-bottom: 0; }
-  .f-state { font: 600 .68rem/1.5 var(--mono); letter-spacing: .05em; padding: .1rem .45rem;
-             display: inline-flex; align-items: center; gap: .28rem; min-width: 5.3rem;
-             border-radius: 4px; border: 1px solid currentColor; white-space: nowrap; }
+  .f-state { font: 600 .68rem/1.5 var(--mono); letter-spacing: .05em; padding: var(--space-1) var(--space-2);
+             display: inline-flex; align-items: center; gap: var(--space-1); min-width: 5.3rem;
+             border-radius: var(--radius-xs); border: 1px solid currentColor; white-space: nowrap; }
   .f-state::before { font: 700 .8rem/1 var(--mono); }
   .f-pass { color: var(--success); background: var(--success-soft); }
   .f-pass::before { content: "✓"; }
@@ -261,69 +273,69 @@
   .f-fail::before { content: "×"; }
   .f-unknown { color: var(--brand-slate); background: var(--neutral-soft); }
   .f-unknown::before { content: "?"; }
-  .finding-row:has(.f-pass) { background: var(--ok-soft); border-left: 3px solid var(--ok); padding-left: .65rem; }
-  .finding-row:has(.f-fail) { background: var(--bad-soft); border-left: 3px solid var(--bad); padding-left: .65rem; }
-  .finding-row:has(.f-unknown) { background: var(--unknown-soft); border-left: 3px solid var(--unknown); padding-left: .65rem; }
+  .finding-row:has(.f-pass) { background: var(--ok-soft); border-left: 3px solid var(--ok); padding-left: var(--space-3); }
+  .finding-row:has(.f-fail) { background: var(--bad-soft); border-left: 3px solid var(--bad); padding-left: var(--space-3); }
+  .finding-row:has(.f-unknown) { background: var(--unknown-soft); border-left: 3px solid var(--unknown); padding-left: var(--space-3); }
   .f-body { flex: 1; min-width: 0; }
   .f-id { font-family: var(--mono); font-size: .76rem; color: var(--muted); }
   .f-summary { font-size: .9rem; }
-  .f-limit { font-size: .8rem; color: var(--muted); margin-top: .2rem; }
+  .f-limit { font-size: .8rem; color: var(--muted); margin-top: var(--space-1); }
   .f-evidence { font-family: var(--mono); font-size: .74rem; color: var(--muted);
-                margin-top: .3rem; word-break: break-all; }
+                margin-top: var(--space-1); word-break: break-all; }
   .m-value {
     font: 700 1.2rem/1.15 var(--mono); font-variant-numeric: tabular-nums;
-    margin-top: .3rem; color: var(--ink);
+    margin-top: var(--space-1); color: var(--ink);
   }
   .m-unit {
     color: var(--muted); font: 600 .72rem/1 var(--mono);
-    text-transform: uppercase; letter-spacing: .05em; margin-left: .45rem;
+    text-transform: uppercase; letter-spacing: .05em; margin-left: var(--space-2);
   }
   .m-state {
     display: inline-block; font: 600 .68rem/1.5 var(--mono); letter-spacing: .05em;
-    padding: .1rem .45rem; border-radius: 4px; border: 1px solid currentColor;
+    padding: var(--space-1) var(--space-2); border-radius: var(--radius-xs); border: 1px solid currentColor;
     color: var(--brand-slate); background: var(--neutral-soft); white-space: nowrap;
-    margin-right: .5rem;
+    margin-right: var(--space-2);
   }
   .m-unknown { color: var(--brand-slate); }
-  .meta { color: var(--muted); font-size: .82rem; margin-top: .9rem; }
+  .meta { color: var(--muted); font-size: .82rem; margin-top: var(--space-4); }
   .err { color: var(--bad); }
-  .provenance { margin-bottom: .9rem; padding: .7rem .85rem; border-radius: 6px;
+  .provenance { margin-bottom: var(--space-4); padding: var(--space-3) var(--space-3); border-radius: var(--radius-sm);
                 border: 1px solid var(--warn); color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, transparent); }
   .provenance-live { border-color: var(--ok); color: var(--ok); background: var(--ok-soft); }
-  h2 { font-size: .95rem; margin: 0 0 .8rem; letter-spacing: .01em; }
-  .legend-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .55rem; margin-top: .9rem; }
-  .legend-item { display: flex; align-items: center; gap: .45rem; min-width: 0; }
+  h2 { font-size: .95rem; margin: 0 0 var(--space-3); letter-spacing: .01em; }
+  .legend-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); margin-top: var(--space-4); }
+  .legend-item { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
   .legend-item span:last-child { font-size: .8rem; }
   .case { font-size: .88rem; color: var(--muted); }
   .integrity-cell { white-space: nowrap; }
-  .integrity-cell .badge { font-size: .65rem; padding: .3rem .45rem; border-width: 1px; }
+  .integrity-cell .badge { font-size: .65rem; padding: var(--space-1) var(--space-2); border-width: 1px; }
   .integrity-cell .badge::before { font-size: .8rem; }
-  .integrity-cell .integrity-via { font-family: var(--mono); font-size: .72rem; color: var(--warn); margin-left: .35rem; }
+  .integrity-cell .integrity-via { font-family: var(--mono); font-size: .72rem; color: var(--warn); margin-left: var(--space-1); }
   .case strong { color: var(--ink); font-weight: 600; }
-  .cs-info { font-size: .8rem; color: var(--muted); margin-left: .3rem; }
+  .cs-info { font-size: .8rem; color: var(--muted); margin-left: var(--space-1); }
   .cs-info .cs-state { font: 600 .72rem/1 var(--mono); letter-spacing: .04em;
-    padding: .15rem .4rem; border-radius: 3px; border: 1px solid currentColor;
+    padding: var(--space-1) var(--space-2); border-radius: var(--radius-xs); border: 1px solid currentColor;
     vertical-align: middle; }
   .cs-info .cs-state.cs-direct { color: var(--brand-navy); background: var(--neutral-soft); }
   .cs-info .cs-state.cs-derivative { color: var(--brand-slate); background: var(--warning-soft); }
   .cs-info .cs-state.cs-nomarket { color: var(--brand-coral); background: rgba(249, 115, 22, 0.12); }
   svg { width: 100%; height: auto; display: block; }
   .axis { fill: var(--muted); font: 10px var(--mono); }
-  .trend-legend { display: flex; gap: 1.1rem; margin-top: .4rem;
+  .trend-legend { display: flex; gap: var(--space-4); margin-top: var(--space-2);
                   font: 550 .72rem/1 var(--mono); letter-spacing: .05em; color: var(--muted); }
-  .trend-legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px;
-                      margin-right: .35rem; vertical-align: -1px; }
-  footer { color: var(--muted); font-size: .82rem; border-top: 1px solid var(--border); padding-top: 1.1rem; margin-top: 2rem; }
+  .trend-legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: var(--radius-xs);
+                      margin-right: var(--space-1); vertical-align: -1px; }
+  footer { color: var(--muted); font-size: .82rem; border-top: 1px solid var(--border); padding-top: var(--space-4); margin-top: var(--space-8); }
   code { font-family: var(--mono); font-size: .85em; }
 
   /* Loading / cold-start state ------------------------------------------- */
   .loading-panel {
     background: var(--panel); border: 1px solid var(--border);
-    border-radius: 10px; padding: 1.5rem 1.25rem; margin-bottom: 1.25rem;
-    display: flex; flex-direction: column; gap: .9rem;
+    border-radius: var(--radius-md); padding: var(--space-6) var(--space-5); margin-bottom: var(--space-5);
+    display: flex; flex-direction: column; gap: var(--space-4);
   }
   .loading-dots {
-    display: flex; gap: .45rem; align-items: center;
+    display: flex; gap: var(--space-2); align-items: center;
   }
   .loading-dots span {
     width: 8px; height: 8px; border-radius: 50%;
@@ -341,7 +353,7 @@
   }
   .loading-wake {
     font-size: .85rem; color: var(--muted);
-    border-left: 3px solid var(--border); padding-left: .7rem;
+    border-left: 3px solid var(--border); padding-left: var(--space-3);
   }
 
   /* Empty states (issue #300) --------------------------------------------
@@ -352,8 +364,8 @@
    * alone (WCAG SC 1.4.1), and stays keyboard-reachable because it is plain
    * text with no interactive parts. */
   .empty-state {
-    display: flex; gap: .8rem; align-items: flex-start;
-    padding: .2rem 0;
+    display: flex; gap: var(--space-3); align-items: flex-start;
+    padding: var(--space-1) 0;
   }
   .empty-state .es-glyph {
     flex: none; display: inline-flex; align-items: center; justify-content: center;
@@ -367,7 +379,7 @@
     font-weight: var(--weight-semibold); margin: 0; color: var(--ink);
   }
   .empty-state .es-body {
-    margin: .15rem 0 0; color: var(--muted); font-size: var(--text-base);
+    margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--text-base);
   }
   /* A no-market empty state belongs to the integrity family, so it borrows
    * that role's glyph but stays neutral — the distinction (structural absence,
@@ -1046,7 +1058,7 @@ function renderTrend() {
 
   parts.push(`<div class="panel">
     <h2>Loss against mid over time</h2>
-    <div class="controls" style="margin-bottom:.75rem">
+    <div class="controls" style="margin-bottom:var(--space-3)">
       <label for="trend-size">Size</label>
       <select id="trend-size">
         ${trendSizes(d).map(s =>
@@ -1138,7 +1150,7 @@ function trendChart(d, size) {
   }).filter(p => !isNaN(p.t));
 
   if (!pts.length)
-    return `<div class="panel" style="border:0; padding:1rem 0">
+    return `<div class="panel" style="border:0; padding: var(--space-4) 0">
       No usable runs for this corridor.</div>`;
 
   const t0 = Math.min(...pts.map(p => p.t));
