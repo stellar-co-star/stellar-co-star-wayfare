@@ -559,13 +559,20 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // --- Asset / corridor selector -----------------------------------------------
-
-const CORRIDOR_NAMES = {
-  NGNC: 'NGNC (naira)', GHSC: 'GHSC (cedi)', KESC: 'KESC (shilling)',
-};
+//
+// Everything the selector shows comes from GET /api/assets (issue #290): the
+// set of corridors from `can_be_destination`, the send asset at the head of
+// each label from the one entry that is not a destination, and the peg in the
+// label from the entry itself. This file names no asset code, so a corridor
+// the endpoint starts returning appears here without a UI change and one it
+// stops returning disappears with it.
 
 let assetData = null; // cached /api/assets response
 
+// loadAssets fills the selector and resolves to whether a corridor is
+// actually selectable. boot() uses that to tell "the list loaded" apart from
+// "the list could not be loaded", instead of substituting a corridor the
+// endpoint never confirmed.
 async function loadAssets() {
   try {
     const r = await fetch('/api/assets');
@@ -574,16 +581,26 @@ async function loadAssets() {
     assetData = data;
     buildSelector(data);
   } catch (e) {
-    // Fallback: keep the loading placeholder so the user sees the
-    // corridor is unavailable rather than silently defaulting.
+    // No default is substituted here: the reader is told the list could not
+    // be loaded rather than handed a corridor this build never verified, and
+    // the reason stays available to boot() as a false return.
     const sel = $('to');
     sel.innerHTML = '<option value="" disabled selected>Could not load corridors</option>';
+    return false;
   }
+  return $('to').value !== '';
 }
 
 function buildSelector(data) {
   const sel = $('to');
-  const assets = (data.assets || []).filter(a => a.can_be_destination);
+  const all = data.assets || [];
+  const assets = all.filter(a => a.can_be_destination);
+  // The send side of every label is the settlement asset: the one entry the
+  // endpoint reports with can_be_destination false (server/api.go). Read from
+  // the response rather than written into this file, so the label is wrong
+  // only if the API is. When no such entry exists the prefix is omitted — an
+  // unknown send asset is unknown, never assumed to be USDC.
+  const settlement = (all.find(a => !a.can_be_destination) || {}).code || '';
   if (assets.length === 0) {
     // Nothing measurable: say so as its own state rather than leaving an empty
     // dropdown that looks like a loading bug (issue #300).
@@ -603,11 +620,16 @@ function buildSelector(data) {
   });
 
   sel.innerHTML = assets.map((a, i) => {
-    const label = CORRIDOR_NAMES[a.code] || a.code;
+    // Destination from the entry's own code, the peg it reports beside it,
+    // and the settlement asset found above: `USDC \u2192 NGNC (NGN)` built
+    // entirely from the response. The optional bracketed note is the stored
+    // integrity state the endpoint attached, not a figure this file knows.
+    const dest = `${a.code}${a.peg ? ` (${a.peg})` : ''}`;
+    const label = settlement ? `${settlement} \u2192 ${dest}` : dest;
     const note = a.state && a.state.has_history
       ? ` [${a.state.last_integrity}]` : '';
     return `<option value="${esc(a.code)}"${i === 0 ? ' selected' : ''}>` +
-      `USDC \u2192 ${esc(label)}${esc(note)}</option>`;
+      `${esc(label)}${esc(note)}</option>`;
   }).join('');
 
   // Show the detail line for the initially selected corridor.
@@ -1342,14 +1364,20 @@ async function loadCorridor(to) {
 }
 
 // On page load, populate the corridor selector from /api/assets first, then
-// fetch the initial corridor from recorded history (no &live=1) so the loading
-// state disappears as soon as the server responds, regardless of whether this
-// is a cold start or a warm one.  A cold start on Render's free tier can take
+// fetch the corridor it selected from recorded history (no &live=1) so the
+// loading state disappears as soon as the server responds, whether this is a
+// cold start or a warm one. A cold start on Render's free tier can take
 // ~60 s; the loading panel explains this to the reader.
+//
+// The fetch happens only when the endpoint actually offered a corridor: there
+// is no hardcoded default here. A failed or empty asset list leaves the state
+// buildSelector() wrote — "could not load", or "no corridors to measure" — on
+// screen instead of silently measuring a corridor the reader was never given
+// (issue #290).
 (async function boot() {
-  await loadAssets();
-  const to = $('to').value || 'NGNC';
-  await loadCorridor(to);
+  const ready = await loadAssets();
+  if (!ready) return;
+  await loadCorridor($('to').value);
 })();
 </script>
 <script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a30a05c3d811663d',t:'MTc4NzY1NDg4Nw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
