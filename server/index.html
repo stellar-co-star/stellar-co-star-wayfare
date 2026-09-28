@@ -442,6 +442,19 @@
     <span id="status" class="sub"></span>
   </div>
 
+  <details class="compare-controls">
+    <summary>Compare shared measurements</summary>
+    <div class="controls">
+      <label for="compare-to">Compare with</label>
+      <select id="compare-to" aria-label="Select the second corridor to compare" disabled>
+        <option value="">Loading corridors…</option>
+      </select>
+      <button id="compare" type="button" aria-controls="compare-out" disabled>Compare corridors</button>
+      <span id="compare-status" class="sub" role="status" aria-live="polite"></span>
+    </div>
+  </details>
+  <div id="compare-out" aria-live="polite"></div>
+
   <div id="out">
     <div class="loading-panel" id="loading">
       <div class="loading-dots">
@@ -631,6 +644,14 @@ function buildSelector(data) {
     return `<option value="${esc(a.code)}"${i === 0 ? ' selected' : ''}>` +
       `${esc(label)}${esc(note)}</option>`;
   }).join('');
+  sel.innerHTML = options;
+  compareSel.innerHTML = '<option value="" disabled>Select a different corridor</option>' + options;
+  compareSel.value = assets.find(a => a.code !== sel.value)?.code || '';
+  compareSel.disabled = assets.length < 2;
+  $('compare').disabled = assets.length < 2;
+  if (assets.length < 2) {
+    compareSel.innerHTML = '<option value="">A second corridor is not available</option>';
+  }
 
   // Show the detail line for the initially selected corridor.
   updateCorridorDetail(sel.value);
@@ -759,6 +780,101 @@ function render(d) {
 
   parts.push(caseStudy(d));
   $('out').innerHTML = parts.join('');
+}
+
+// The comparison is deliberately narrow: loss percentages are dimensionless
+// and comparable only when both API responses scored the same send size and
+// both produced a priced quote. Receive amounts and effective rates use
+// different destination currencies, so they are not compared across corridors.
+function sharedLosses(a, b) {
+  const leftAsset = a.send_asset || {};
+  const rightAsset = b.send_asset || {};
+  if (!leftAsset.code || leftAsset.code !== rightAsset.code ||
+      (leftAsset.issuer || '') !== (rightAsset.issuer || '') ||
+      (leftAsset.asset && rightAsset.asset && leftAsset.asset !== rightAsset.asset) ||
+      a.scored !== true || b.scored !== true || !Array.isArray(a.rungs) || !Array.isArray(b.rungs)) return [];
+  const right = new Map(b.rungs
+    .filter(r => typeof r.send_amount === 'string' && r.send_amount !== '')
+    .map(r => [r.send_amount, r]));
+  return a.rungs.flatMap(left => {
+    if (typeof left.send_amount !== 'string' || left.send_amount === '') return [];
+    const other = right.get(left.send_amount);
+    const lq = left.priced === true && left.quote;
+    const rq = other && other.priced === true && other.quote;
+    if (!lq || !rq || typeof lq.loss_pct !== 'string' || !lq.loss_pct ||
+        typeof rq.loss_pct !== 'string' || !rq.loss_pct) return [];
+    return [{ size: left.send_amount, left: lq.loss_pct, right: rq.loss_pct }];
+  });
+}
+
+function comparisonSide(d) {
+  const source = d.send_asset?.code || 'source asset';
+  const destination = d.receive_asset?.code || 'Unknown corridor';
+  const freshness = d.live
+    ? `Live measurement · ${d.measured_at || 'time not supplied'}`
+    : `Recorded, not current · ${d.stale?.age_human || 'historical reading'} · ${d.stale?.recorded_at || d.measured_at || 'time not supplied'}`;
+  const dependency = (d.depends_on || []).map(a => a.code || a).filter(Boolean).join(', ');
+  const structure = dependency ? `${d.integrity} · depends on ${dependency}` : String(d.integrity || 'Not supplied');
+  return `<section class="compare-side" aria-label="${esc(destination)} response details">
+    <h3>${esc(source)} → ${esc(destination)}</h3>
+    <p>Market structure: ${esc(structure)}</p>
+    <p>${esc(freshness)}</p>
+  </section>`;
+}
+
+function compareRender(a, b) {
+  const common = sharedLosses(a, b);
+  const sendCode = a.send_asset?.code || 'source token';
+  const left = a.receive_asset?.code || 'first corridor';
+  const right = b.receive_asset?.code || 'second corridor';
+  const rows = common.map(row => `<tr>
+    <td class="num">${esc(row.size)} ${esc(sendCode)}</td>
+    <td class="num compare-value">${esc(formatPct(row.left))}%</td>
+    <td class="num compare-value">${esc(formatPct(row.right))}%</td>
+  </tr>`).join('');
+  const unscored = [
+    a.scored === false ? left : '',
+    b.scored === false ? right : '',
+  ].filter(Boolean);
+  const table = common.length
+    ? `<div class="scroll"><table><thead><tr><th>Shared send amount (${esc(sendCode)})</th><th>${esc(left)} loss against mid</th><th>${esc(right)} loss against mid</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : `<p class="compare-note">${unscored.length ? '<span class="m-state">UNDETERMINED</span>' : ''}No shared scored loss measurements are available for the same source asset and send amounts.${unscored.length ? ` The API reports no scored loss for ${esc(unscored.join(' and '))}.` : ''} Nothing has been filled in or inferred.</p>`;
+  return `<section class="panel compare-panel" aria-labelledby="compare-heading">
+    <h2 id="compare-heading">Shared measurements</h2>
+    <div class="compare-grid">${comparisonSide(a)}${comparisonSide(b)}</div>
+    ${table}
+    <p class="meta">Only API-produced loss percentages for identical send sizes appear here. Values are shown as returned by each corridor; no difference, ranking, or recommendation is calculated.</p>
+  </section>`;
+}
+
+async function compareCorridors() {
+  const first = $('to').value;
+  const second = $('compare-to').value;
+  const status = $('compare-status');
+  const button = $('compare');
+  if (!first || !second || first === second) {
+    status.textContent = 'Choose two different corridors.';
+    $('compare-out').innerHTML = '';
+    return;
+  }
+  button.disabled = true;
+  status.textContent = 'Loading corridor responses…';
+  $('compare-out').innerHTML = '';
+  try {
+    const responses = await Promise.all([first, second].map(async code => {
+      const r = await fetch(`/api/corridor?to=${encodeURIComponent(code)}`);
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+      return data;
+    }));
+    $('compare-out').innerHTML = compareRender(responses[0], responses[1]);
+    status.textContent = '';
+  } catch (e) {
+    $('compare-out').innerHTML = `<p class="compare-note" role="alert">Could not load both corridor responses: ${esc(e.message)}</p>`;
+    status.textContent = '';
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function unscoredBlock(d) {
@@ -1342,6 +1458,7 @@ function runsTable(runs) {
 
 $('run').addEventListener('click', measure);
 $('trend').addEventListener('click', loadTrend);
+$('compare').addEventListener('click', compareCorridors);
 
 async function loadCorridor(to) {
   if (!to) {
@@ -1353,6 +1470,9 @@ async function loadCorridor(to) {
     return;
   }
   try {
+    await loadAssets();
+    const to = $('to').value;
+    if (!to) throw new Error('No corridor is available to load.');
     const r = await fetch(`/api/corridor?to=${encodeURIComponent(to)}`);
     const data = await r.json();
     if (!r.ok) throw Object.assign(new Error(data.error || `HTTP ${r.status}`), { code: data.code });
