@@ -60,7 +60,17 @@
     --chart-grid: #CBD5E1;
     --chart-line: var(--brand-slate);
     --chart-point: var(--brand-navy);
+    /* The threshold is the one genuine severity in a chart: it marks where the
+       engine refuses a size. It is named as a chart role so the chart never
+       paints data with a verdict colour. */
     --chart-threshold: var(--critical);
+    /* Structural integrity states, not severities (docs/state-vocabulary.md).
+       They share the brand primitives the badges use so the same state reads
+       the same colour in both places, and they are deliberately distinct from
+       --ok/--warn/--bad: NO-MARKET must not read as failure. */
+    --chart-direct: var(--brand-navy);
+    --chart-derivative: var(--brand-slate);
+    --chart-nomarket: var(--brand-coral);
     --focus-ring: rgba(15, 118, 110, 0.28);
     --press-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.18);
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -119,6 +129,9 @@
       --chart-line: #E2E8F0;
       --chart-point: #F8FAFC;
       --chart-threshold: #FCA5A5;
+      --chart-direct: #F8FAFC;
+      --chart-derivative: #CBD5E1;
+      --chart-nomarket: #FDBA74;
       --inset: #1E293B;
       --critical-soft: rgba(185, 28, 28, 0.18);
       --warning-soft: rgba(245, 158, 11, 0.18);
@@ -762,8 +775,8 @@ function curve(rungs) {
 
   // The 20% line is the Unusable threshold; everything above it is refused.
   const thresh = `<line x1="${P}" y1="${sy(20)}" x2="${W - P}" y2="${sy(20)}"
-      stroke="var(--bad)" stroke-width="1" stroke-dasharray="4 3" opacity="0.7"/>
-    <text class="axis" x="${W - P - 96}" y="${sy(20) - 5}" fill="var(--bad)">unusable above</text>`;
+      stroke="var(--chart-threshold)" stroke-width="1" stroke-dasharray="4 3" opacity="0.7"/>
+    <text class="axis" x="${W - P - 96}" y="${sy(20) - 5}" fill="var(--chart-threshold)">unusable above</text>`;
 
   const dots = xs.map((x, i) =>
     `<circle cx="${sx(x).toFixed(1)}" cy="${sy(ys[i]).toFixed(1)}" r="3"
@@ -1170,11 +1183,17 @@ function trendChart(d, size) {
 
   // The 20% line is the Unusable threshold; everything above it is refused.
   const thresh = `<line x1="${P}" y1="${sy(20)}" x2="${W - P}" y2="${sy(20)}"
-      stroke="var(--bad)" stroke-width="1" stroke-dasharray="4 3" opacity="0.7"/>
-    <text class="axis" x="${W - P - 96}" y="${sy(20) - 5}" fill="var(--bad)">unusable above</text>`;
+      stroke="var(--chart-threshold)" stroke-width="1" stroke-dasharray="4 3" opacity="0.7"/>
+    <text class="axis" x="${W - P - 96}" y="${sy(20) - 5}" fill="var(--chart-threshold)">unusable above</text>`;
 
+  // Structural integrity states are not severities: they use the chart's own
+  // structural roles, never --warn/--bad, so a NO-MARKET run does not read as
+  // a failure. Anything the engine did not determine stays neutral --muted.
   const dotFill = (i) =>
-    i === 'DERIVATIVE' ? 'var(--warn)' : i === 'NO-MARKET' ? 'var(--bad)' : 'var(--muted)';
+    i === 'DIRECT' ? 'var(--chart-direct)'
+      : i === 'DERIVATIVE' ? 'var(--chart-derivative)'
+      : i === 'NO-MARKET' ? 'var(--chart-nomarket)'
+      : 'var(--muted)';
 
   const segments = [];
   for (let i = 1; i < pts.length; i++) {
@@ -1183,7 +1202,7 @@ function trendChart(d, size) {
     const gap = (b.t - a.t) / 3600e3;
     segments.push(`<line x1="${sx(a.t).toFixed(1)}" y1="${sy(a.loss).toFixed(1)}"
        x2="${sx(b.t).toFixed(1)}" y2="${sy(b.loss).toFixed(1)}"
-       stroke="var(--bad)" stroke-width="2"${gap > GAP_HOURS ? ' stroke-dasharray="5 4"' : ''}/>`);
+       stroke="var(--chart-line)" stroke-width="2"${gap > GAP_HOURS ? ' stroke-dasharray="5 4"' : ''}/>`);
   }
 
   const priced = pts.filter(p => p.loss != null);
@@ -1241,9 +1260,9 @@ function trendChart(d, size) {
   const ticks = span === 0 ? tick(t0) : [t0, (t0 + t1) / 2, t1].map(tick).join('');
 
   const legend = `<div class="trend-legend">
-      <span><span class="sw" style="background:var(--muted)"></span>DIRECT</span>
-      <span><span class="sw" style="background:var(--warn)"></span>DERIVATIVE</span>
-      <span><span class="sw" style="background:var(--bad)"></span>NO-MARKET</span>
+      <span><span class="sw" style="background:var(--chart-direct)"></span>DIRECT</span>
+      <span><span class="sw" style="background:var(--chart-derivative)"></span>DERIVATIVE</span>
+      <span><span class="sw" style="background:var(--chart-nomarket)"></span>NO-MARKET</span>
     </div>`;
 
   return `<svg viewBox="0 0 ${W} ${H}" role="img"
