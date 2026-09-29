@@ -184,6 +184,11 @@ In the pull request, describe what changed and why. If it touches pricing,
 say how you verified correctness — and if you measured something live,
 include the raw figures and the timestamp.
 
+## Opening an issue
+
+Issues should follow the templates in [.github/ISSUE_TEMPLATE/](.github/ISSUE_TEMPLATE/)
+(covering features/hardening, spikes/research, documentation, and bug reports).
+
 ## Reporting a corridor
 
 Measurements of other corridors are genuinely valuable, and the tool is built
