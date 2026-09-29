@@ -117,7 +117,7 @@
    * schemes cannot disagree about what --check-undetermined means.
    */
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #020817;
       --panel: #0F172A;
       --panel-alt: #111827;
@@ -149,6 +149,42 @@
       --focus-outline: #5EEAD4;
       --press-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
     }
+
+  /* Explicit dark, chosen via the theme selector (#287): applies whatever
+     the OS says. Token set mirrors the prefers-color-scheme block above;
+     keep the two in sync. */
+  :root[data-theme="dark"] {
+      --bg: #020817;
+      --panel: #0F172A;
+      --panel-alt: #111827;
+      --border: #334155;
+      --ink: #F8FAFC;
+      --muted: #CBD5E1;
+      --accent: var(--brand-teal);
+      --bad: #FCA5A5;
+      --warn: #FCD34D;
+      --ok: #6EE7B7;
+      --ok-soft: rgba(16, 185, 129, 0.18);
+      --bad-soft: rgba(185, 28, 28, 0.18);
+      --unknown: #CBD5E1;
+      --unknown-soft: rgba(148, 163, 184, 0.18);
+      --grid: #1E293B;
+      --chart-grid: #334155;
+      --chart-line: #E2E8F0;
+      --chart-point: #F8FAFC;
+      --chart-threshold: #FCA5A5;
+      --chart-direct: #F8FAFC;
+      --chart-derivative: #CBD5E1;
+      --chart-nomarket: #FDBA74;
+      --inset: #1E293B;
+      --critical-soft: rgba(185, 28, 28, 0.18);
+      --warning-soft: rgba(245, 158, 11, 0.18);
+      --success-soft: rgba(16, 185, 129, 0.18);
+      --neutral-soft: rgba(148, 163, 184, 0.18);
+      --focus-ring: rgba(110, 231, 183, 0.35);
+      --press-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+
   }
   * { box-sizing: border-box; }
   .skip-link {
@@ -161,7 +197,7 @@
     margin: 0;
     background: var(--bg);
     color: var(--ink);
-    font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font: 0.9375rem/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   .wrap { max-width: 900px; margin: 0 auto; padding: var(--space-10) var(--space-5) var(--space-20); }
   header { border-bottom: 1px solid var(--border); padding-bottom: var(--space-5); margin-bottom: var(--space-7); }
@@ -485,6 +521,15 @@
    * not a bad price) is carried by the copy, per docs/state-vocabulary.md. */
   .empty-state.es-structural .es-glyph { border-color: var(--muted); color: var(--muted); }
 </style>
+<script>
+  // Issue #287: apply a stored explicit theme before first paint so a reload
+  // never flashes the wrong scheme. "system" (or nothing stored) leaves the
+  // data-theme attribute off and the prefers-color-scheme query governs.
+  try {
+    var t = localStorage.getItem('stellar-co-star-stellar-co-star-stellar-co-star-wayfare-theme');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+</script>
 </head>
 <body>
 <a class="skip-link" href="#out">Skip to the results</a>
@@ -1736,6 +1781,40 @@ function runsTable(runs) {
 
 $('run').addEventListener('click', measure);
 $('trend').addEventListener('click', loadTrend);
+
+// --- Theme (#287) ------------------------------------------------------------
+// Three states: system (follows prefers-color-scheme - the media query in the
+// stylesheet does the work), light and dark (explicit, applied via data-theme).
+// The choice persists in localStorage and is applied before first paint by the
+// inline script in <head>, so a reload lands on the chosen scheme with no
+// flash. The control is a native <select>, so it is keyboard reachable and
+// its state is text, not colour alone.
+
+function storedTheme() {
+  try {
+    const v = localStorage.getItem('stellar-co-star-stellar-co-star-stellar-co-star-wayfare-theme');
+    return v === 'light' || v === 'dark' ? v : 'system';
+  } catch (e) {
+    return 'system';
+  }
+}
+
+function applyTheme(v) {
+  if (v === 'light' || v === 'dark') {
+    document.documentElement.setAttribute('data-theme', v);
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+  try {
+    localStorage.setItem('stellar-co-star-stellar-co-star-stellar-co-star-wayfare-theme', v === 'system' ? '' : v);
+  } catch (e) {
+    // Storage unavailable (private mode): the choice still applies now, it
+    // just does not persist.
+  }
+}
+
+$('theme').value = storedTheme();
+$('theme').addEventListener('change', (e) => applyTheme(e.target.value));
 $('compare').addEventListener('click', compareCorridors);
 
 async function loadCorridor(to) {
