@@ -466,6 +466,13 @@
     <select id="to" aria-label="Select a corridor to measure">
       <option value="" disabled selected>Loading corridors…</option>
     </select>
+    <label for="sizes">Sizes</label>
+    <input id="sizes" name="sizes" type="text" inputmode="decimal"
+      autocomplete="off" spellcheck="false" class="sizes-input"
+      value="0.1,1,5,10,25,50,100,250,500,1000,2500,5000"
+      aria-label="Comma-separated send sizes in USDC; leave unchanged for the default ladder"
+      aria-describedby="sizes-help">
+    <span id="sizes-help" class="case">USDC, comma-separated</span>
     <span id="cs-detail" class="cs-info"></span>
     <label for="sizes">Send sizes (USDC, comma-separated)</label>
     <input id="sizes" name="sizes" inputmode="decimal" autocomplete="off"
@@ -711,6 +718,9 @@ function buildSelector(data) {
   updateCorridorDetail(sel.value);
   sel.addEventListener('change', () => {
     updateCorridorDetail(sel.value);
+    // URL-first (issue #292): a corridor change is a navigation. The sizes
+    // the reader typed carry over — they describe how to measure, not which
+    // corridor — and the URL bar is updated through the shared path.
     loadCorridor(sel.value);
   });
 }
@@ -829,8 +839,11 @@ async function measure() {
     const data = await r.json();
     if (!r.ok) throw Object.assign(new Error(data.error || `HTTP ${r.status}`), { code: data.code });
     render(data);
+    // Reflect the exact request that produced this reading.
+    writeURLState({ to, sizes: sizes.norm, live: true });
     $('status').textContent = '';
   } catch (e) {
+    if (e.code === 'invalid_sizes') $('sizes').setAttribute('aria-invalid', 'true');
     showErrorBanner(`Could not measure: ${esc(e.message)}`);
     $('status').textContent = '';
   } finally {
@@ -842,6 +855,13 @@ async function measure() {
 // the server uses to say "this build cannot service that request at all" is a
 // capability gap, not a corridor that measured empty, so it renders as one;
 // everything else is a genuine unavailable-data error naming the cause.
+//
+// Currently unreferenced: the fetch paths show errors through showErrorBanner
+// (which preserves the page, #293) rather than replacing it. It stays because
+// its unknown_receive_asset branch is the only mapping of that code to the
+// capability-gap empty state, and a future caller that renders an error in
+// place of the page should route through it rather than re-deriving that
+// mapping. Flagged for removal if it gains no caller.
 function errorPanel(prefix, e) {
   if (e.code === 'unknown_receive_asset') {
     return `<div class="panel">${capabilityGap(
