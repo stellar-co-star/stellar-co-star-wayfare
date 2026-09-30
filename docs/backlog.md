@@ -1772,6 +1772,25 @@ The 25% structural floor at dust size is a genuine, reproducible market finding
 that currently lives in a README section.
 `V1` `area:ecosystem` `difficulty:medium` `ready`
 
+> **Finding written:** [docs/ngnc-structural-floor.md](ngnc-structural-floor.md)
+> (2026-09-30). The floor is now sourced to three dated observations rather than
+> one: the 2026-08-08 live run (24.65%), the committed 2026-08-22 record in
+> `data/USDC-NGNC.ndjson` (27.15%), and an offline replay of the recorded
+> `usdc-ngnc-20260821T223040Z` snapshot (28.18%). The finding strengthens: the
+> 0.1 rung's best path is a different route on each date — direct, then
+> `Cleanshave`/`AQUA`, then `BLND`/`XLM` — so the floor tracks the corridor and
+> not any one pool. The attribution does **not** close, and the document says so:
+> the spread-versus-depth reading is an inference, because no market-quality
+> metric is reachable (`checks.Runner` has no `Metric` field, `AddMetric` has no
+> non-test caller) and `PriceImpactMetric` scores impact from the smallest
+> *probed* size, so it reports zero impact at its own baseline by construction
+> and could not separate a floor from slippage even if wired. Also recorded: the
+> engine's own finding string asserts "structural floor, not a depth effect"
+> unconditionally at `route/ladder.go:528-536`, conditioned on no measurement —
+> flagged, not changed, since that file is maintainer-owned. The issue's
+> "Roadmap impact: I5 — Accessibility and motion" line does not match this
+> entry's `area:ecosystem` or its deliverable, and is treated as a stray.
+
 **#273 — Map the Stellar ecosystem projects Wayfare could inform** *(filed: [#326](https://github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/issues/326))*
 Named wallets, PSPs and anchors, with what each would need from the API — the
 input #157 needs to be worth answering.
