@@ -698,6 +698,8 @@ constraints, not style preferences. Submissions follow the templates in
 project does and does not do, how to get set up, what is not built yet, and how
 to check a claim against the code. Ask the rest in
 [Discussions → Q&A](https://github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/discussions/categories/q-a).
+What contributors have actually asked here, with each answer checked against the
+code: **[docs/discussion-questions.md](docs/discussion-questions.md)**.
 
 ---
 

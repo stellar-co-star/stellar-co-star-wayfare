@@ -1789,6 +1789,26 @@ input #157 needs to be worth answering.
 Enabled during this sweep and currently empty.
 `V1` `area:ecosystem` `good first issue` `difficulty:easy` `ready`
 
+> **Finding written:** [docs/discussion-questions.md](discussion-questions.md)
+> (2026-09-30). The seed is derived from the only evidence that exists, not
+> invented: five issues filed by two people outside the maintainer account
+> (#474, #475, #476, #477 by `Hotmopo`; #481 by `goodness-cpu`), all dated
+> 2026-09-23/24. Each answer is quoted out of the tree at `74c1f17` so a reader
+> can check it, and four of the five statuses are *not* "answered": #481 and
+> #477 are unresolved, #475 is partly addressed (the error `code` now reaches
+> the UI at `server/index.html:986` but is read only for `aria-invalid` at
+> :992, so the rendered text is still prose-only), #474 is fixed, and #476 is
+> reported as **not established** — this repository's own artifact
+> `docs/qa/artifacts/270-mobile.md` measured it on 2026-09-23, but re-running
+> `run-mobile.mjs` on the current build timed out on its `.scroll` locator for
+> all four device profiles, so the harness has drifted from the UI and no
+> current figure exists. Also recorded: Discussions is enabled with six
+> categories and zero threads, and the issue comment threads are dominated by
+> Stellar Wave bounty applications rather than questions — which is the actual
+> reason Discussions is empty. Seeding the Discussions themselves needs
+> maintainer rights (`push`/`triage`), so this delivers the seed as a document
+> and a maintainer can post it.
+
 **#275 — Issue and pull-request templates** *(filed: [#328](https://github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/issues/328))*
 `.github/` has workflows and no templates; the issue quality bar in this
 repository is high and currently transmitted by example only.
