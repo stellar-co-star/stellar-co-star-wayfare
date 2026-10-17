@@ -7,7 +7,7 @@ import (
 
 func TestBudgetScalesWithRungsUpToCeiling(t *testing.T) {
 	s := &Server{Timeout: 90 * time.Second}
-	if a, b := s.budgetFor(3), s.budgetFor(6); !(a < b) {
+	if a, b := s.budgetFor(3), s.budgetFor(6); a >= b {
 		t.Errorf("budget did not grow with rungs: 3 rungs %s, 6 rungs %s", a, b)
 	}
 	if got := s.budgetFor(12); got >= 90*time.Second {

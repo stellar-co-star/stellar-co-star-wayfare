@@ -42,9 +42,9 @@ import (
 
 func main() {
 	var (
-		addr      = flag.String("addr", defaultAddr(), "listen address (default follows $PORT when set)")
-		horizon   = flag.String("horizon", "", "Horizon base URL (default: mainnet)")
-		timeout   = flag.Duration("timeout", 90*time.Second,
+		addr    = flag.String("addr", defaultAddr(), "listen address (default follows $PORT when set)")
+		horizon = flag.String("horizon", "", "Horizon base URL (default: mainnet)")
+		timeout = flag.Duration("timeout", 90*time.Second,
 			"ceiling on a live measurement; the budget per request scales with rung count up to this")
 		shutdownGrace = flag.Duration("shutdown-grace", 30*time.Second,
 			"how long SIGTERM waits for in-flight requests before closing")
