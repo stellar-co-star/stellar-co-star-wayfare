@@ -50,9 +50,10 @@ type Server struct {
 	// is tried first.
 	HistoryFirst bool
 
-	// Timeout is the ceiling on a single corridor measurement. The budget a
-	// request actually gets is derived from its rung count (see budgetFor)
-	// and never exceeds this.
+	// Timeout bounds a single corridor measurement. A full ladder is a
+	// dozen round trips to Horizon, so this is generous by HTTP standards.
+	// It is the ceiling: the budget a request actually gets is derived from
+	// its rung count (see budgetFor) and never exceeds this.
 	Timeout time.Duration
 
 	// Limiter bounds what each client can cost the service (issue #320). A
