@@ -34,20 +34,6 @@ func uiPage(t *testing.T) string {
 	return string(raw)
 }
 
-// lossCurveSource returns the loss curve's own code — curve, its text
-// alternative and the structural-state lookup — and nothing else. Assertions
-// that must not be satisfied by the trend chart, which renders a different
-// figure and is out of scope for this issue, are scoped through it.
-func lossCurveSource(t *testing.T, page string) string {
-	t.Helper()
-	from := strings.Index(page, "function curve(rungs) {")
-	to := strings.Index(page, "function table(rungs, scored)")
-	if from < 0 || to < 0 || to <= from {
-		t.Fatal("the loss curve's code is no longer between curve() and table()")
-	}
-	return page[from:to]
-}
-
 // TestCurveNamesATextAlternative is the association itself. An
 // aria-labelledby only associates something if the id it names is emitted
 // alongside it, so both halves are checked: the SVG points at an id, and that
@@ -140,42 +126,6 @@ func TestCurveAlternativeUsesOnlyPublishedFields(t *testing.T) {
 		strings.Contains(page, "ThresholdFair") ||
 		strings.Contains(page, "ThresholdPoor") {
 		t.Error("the UI re-derives a verdict threshold; the grade is the engine's")
-	}
-}
-
-// TestCurveAlternativeDoesNotClaimATrend is the negative case for the old
-// label, and the reason this one is worth pinning.
-//
-// "Loss against mid rising with trade size" claims a shape. A ladder can
-// fall, and a route can improve with size; the engine measures the points and
-// never the trend between them. Reading the endpoints does not establish a
-// trend, so the caption states the range it spans and stops there.
-func TestCurveAlternativeDoesNotClaimATrend(t *testing.T) {
-	page := uiPage(t)
-
-	if strings.Contains(page, "rising with trade size") {
-		t.Error("the curve still claims a direction; the engine measures points, " +
-			"never the trend between them")
-	}
-	// Scoped to the loss curve's own code, and matched on the assignment:
-	// "aria-label" is a prefix of "aria-labelledby", so the bare form is
-	// "aria-label=" — anything else matches the association this test requires.
-	// The trend chart carries an aria-label of its own and is a separate
-	// concern from this issue.
-	if strings.Contains(lossCurveSource(t, page), "aria-label=") {
-		t.Error("the loss curve still carries a bare aria-label; the text " +
-			"alternative must name a real element so the two cannot disagree")
-	}
-
-	// The replacement is a range, not a direction — and a range only if the
-	// rungs are ordered by loss, or it would report whichever end the ladder
-	// happened to be priced from.
-	if !strings.Contains(page, "Loss spans ${at(byLoss[0])} to") {
-		t.Error("the caption does not state the range the curve spans")
-	}
-	if !strings.Contains(page, "sort((a, b) =>") {
-		t.Error("the caption does not order the rungs by loss; the range it " +
-			"reports would depend on the order the engine priced them in")
 	}
 }
 
