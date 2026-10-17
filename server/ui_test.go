@@ -134,4 +134,3 @@ func TestUIPreservesContentOnFetchError(t *testing.T) {
 		t.Errorf("showErrorBanner used %d times, want at least 4 (definition + three fetch paths)", n)
 	}
 }
-
