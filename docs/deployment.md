@@ -294,6 +294,80 @@ and one asserting a missing one is an error rather than a plausible number.
 
 ---
 
+## Structured logging and retention
+
+`stellar-co-star-stellar-co-star-stellar-co-star-wayfared` emits structured key-value logs using Go's standard `log/slog` library to `stderr`. Logging verbosity is controlled by `-log-level` or the `WAYFARE_LOG_LEVEL` environment variable (`debug`, `info`, `warn`, `error`; defaults to `info`).
+
+### Emitted log fields by subsystem
+
+Log lines follow standard `slog` key-value format (`time=... level=... msg="..." key=value`).
+
+#### 1. HTTP server request boundary (`server/api.go`)
+
+Every corridor measurement query writes a boundary log attributing the measurement to the HTTP request:
+
+| Field | Meaning | Example |
+|:---|:---|:---|
+| `msg` | Event description | `"corridor measured"` |
+| `method` | HTTP request method | `GET` |
+| `path` | Request URL path | `/api/corridor` |
+| `from` | Send asset code | `USDC` |
+| `to` | Receive asset code | `NGNC` |
+| `sizes` | Rung sizes query parameter | `0.1,1,10,100` (or empty for default) |
+| `live` | Fresh live measurement (`true`) vs served from history (`false`) | `true` |
+| `integrity` | Structural classification | `DIRECT`, `DERIVATIVE`, `NO-MARKET`, `UNKNOWN` |
+| `duration` | Total elapsed request handling time | `245ms` |
+
+#### 2. Rate limiter (`server/ratelimit.go`)
+
+When a client exceeds the per-client request threshold:
+
+| Field | Meaning | Example |
+|:---|:---|:---|
+| `msg` | Event description | `"request rate limited"` |
+| `client` | Client IP address or masked identifier | `127.0.0.1` |
+| `path` | Requested URL path | `/api/corridor` |
+| `retry_after` | Cooldown interval before next permitted request | `1.2s` |
+
+#### 3. Scheduler sweeps (`monitor/monitor.go`)
+
+Background monitoring sweeps record corridor health and storage outcomes:
+
+| Field | Meaning | Example |
+|:---|:---|:---|
+| `msg` | Event description | `"corridor measured"`, `"corridor measurement failed"`, `"recording measurement failed"` |
+| `corridor` | Corridor identifier key | `USDC-NGNC` |
+| `integrity` | Structural classification from ladder | `DIRECT` |
+| `floor_loss_pct` | Lowest loss percentage measured across rungs | `4.31` |
+| `worst_loss_pct` | Highest loss percentage measured across rungs | `97.23` |
+| `scored` | Whether reference benchmarks agreed | `true` |
+| `reference` | Primary benchmark rate provider | `exchangerate-api` |
+| `agreement` | Cross-benchmark comparison outcome | `AGREE`, `DIVERGED`, `UNAVAILABLE` |
+| `took` | Ladder measurement latency | `1.85s` |
+| `error` | Upstream network or storage error | `measuring USDC-NGNC: context deadline exceeded` |
+
+#### 4. Process lifecycle and storage management (`cmd/stellar-co-star-stellar-co-star-stellar-co-star-wayfared`)
+
+Startup, port binding, and maintenance commands emit lifecycle events:
+
+- `msg="binding the port assigned by the platform"`: `port` (e.g. `8080`)
+- `msg="listening"`: `addr`, `schedule`
+- `msg="run store open"`: `dir`, `corridors`
+- `msg="serving embedded history (read-only)"`: `corridors`
+- `msg="scheduler starting"`: `interval`, `corridors`
+- Maintenance failures: `msg="opening run store"`, `msg="listing corridors"`, `msg="rotating store"`, `msg="-check-fresh requires a store; none is configured"`
+
+### Destination and retention on Render
+
+- **Log destination:** On Render, `stellar-co-star-stellar-co-star-stellar-co-star-wayfared` runs inside a Docker container. All `stdout` and `stderr` output is automatically captured by Render's log aggregation pipeline and streamed in real-time in the **Logs** tab of the service dashboard.
+- **Log streams (forwarding):** For long-term archiving or external querying, Render supports configuring **Log Streams** in the dashboard settings to forward syslog-formatted logs over TLS to external aggregators (Better Stack, Datadog, Papertrail, Logtail).
+- **Retention periods by Render workspace plan:**
+  - **Hobby (Free):** **7 days** retention. Older logs are permanently deleted.
+  - **Pro:** **14 days** retention.
+  - **Scale / Enterprise:** **30 days** retention.
+
+---
+
 ## Related
 
 - [cold-start-reliability.md](cold-start-reliability.md) — observed free-tier
