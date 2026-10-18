@@ -368,6 +368,56 @@ Startup, port binding, and maintenance commands emit lifecycle events:
 
 ---
 
+## Checking for deployment drift against `render.yaml`
+
+README's description of the live instance (`-schedule=0 -history-first`) is only true if the deployed service settings match `render.yaml`. Manual edits made in the Render dashboard drift silently over time.
+
+To verify that the live service matches `render.yaml`:
+
+### Automated check via `scripts/render-drift-check.sh`
+
+The read-only drift checker compares start command flags (`dockerCommand`), environment variables (`WAYFARE_LOG_LEVEL`), plan, health check path, and region:
+
+```bash
+# Using an API key stored in an environment variable or secret:
+export RENDER_API_KEY="rnd_..."
+./scripts/render-drift-check.sh
+
+# Or by explicitly specifying the service ID:
+./scripts/render-drift-check.sh --service-id srv-c... --api-key "$RENDER_API_KEY"
+```
+
+Exit codes:
+- `0`: Settings match `render.yaml` (no drift detected).
+- `1`: Drift detected (one or more settings differ; differences are reported).
+- `2`: Configuration or API error.
+
+The script is strictly read-only and issues only `GET` requests to `https://api.render.com/v1/services`.
+
+### Manual check via Render API
+
+If checking manually without the script:
+
+1. Retrieve service settings:
+   ```bash
+   curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" \
+     https://api.render.com/v1/services/<SERVICE_ID> | jq '.serviceDetails'
+   ```
+   Confirm that:
+   - `dockerCommand` matches `/stellar-co-star-stellar-co-star-stellar-co-star-wayfared -addr 0.0.0.0:8080 -schedule=0 -history-first`
+   - `plan` is `free`
+   - `healthCheckPath` is `/healthz`
+   - `region` is `frankfurt`
+
+2. Retrieve environment variables:
+   ```bash
+   curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" \
+     https://api.render.com/v1/services/<SERVICE_ID>/env-vars | jq '.items'
+   ```
+   Confirm that `WAYFARE_LOG_LEVEL` is set to `info`.
+
+---
+
 ## Related
 
 - [cold-start-reliability.md](cold-start-reliability.md) — observed free-tier
