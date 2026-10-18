@@ -24,7 +24,7 @@ cd stellar-co-star-stellar-co-star-stellar-co-star-wayfare
 make test
 ```
 
-Go 1.22 or later. Dependencies are `shopspring/decimal` and `BurntSushi/toml` —
+Go 1.27 or later. Dependencies are `shopspring/decimal` and `BurntSushi/toml` —
 exactly two, pinned, and enforced in CI. The reasoning, and the process for
 changing it: **[docs/dependency-policy.md](docs/dependency-policy.md)**.
 
