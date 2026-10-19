@@ -465,7 +465,12 @@ go run ./cmd/ladder -checks=false    # skip counterparty checks (no findings blo
 go run ./cmd/stellar-co-star-stellar-co-star-stellar-co-star-wayfared                       # serve + measure every 6h
 go run ./cmd/stellar-co-star-stellar-co-star-stellar-co-star-wayfared -serve=false          # scheduler only, no HTTP
 go run ./cmd/stellar-co-star-stellar-co-star-stellar-co-star-wayfared -verify-store -data ./data
+go run ./cmd/stellar-co-star-stellar-co-star-stellar-co-star-wayfared -export USDC-NGNC -format csv -data ./data > corridor.csv
 ```
+
+`-export` verifies the corridor's hash chain first and refuses to write a CSV
+from a chain that does not reconcile; see
+[docs/run-store.md](docs/run-store.md#exporting-a-chain-as-csv).
 
 Every `cmd/ladder` run also runs the same counterparty checks the server runs
 (anchor toml, SEP-10/SEP-24, issuer flags), so `-json` output and
