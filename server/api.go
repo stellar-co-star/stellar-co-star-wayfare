@@ -64,6 +64,11 @@ type Server struct {
 	// it. Tests that hammer one endpoint build their own Server or call
 	// NewRateLimiter with a disabled configuration.
 	Limiter *RateLimiter
+
+	// now is the clock the handlers stamp a "generated at" field with. It is
+	// swapped in tests, which pin it so the timestamp can be frozen in a
+	// golden file; nil means time.Now, and production never sets it.
+	now func() time.Time
 }
 
 // pkgLogger is the package-level logger for request and upstream logging.
@@ -85,6 +90,15 @@ func (s *Server) timeout() time.Duration {
 		return s.Timeout
 	}
 	return 90 * time.Second
+}
+
+// clock returns the current time in UTC. It reads the swappable now field so
+// a test can pin the clock; production leaves that nil and gets time.Now.
+func (s *Server) clock() time.Time {
+	if s.now != nil {
+		return s.now().UTC()
+	}
+	return time.Now().UTC()
 }
 
 // Live-measurement budget: a fixed allowance for the reference rate and
@@ -1069,7 +1083,7 @@ func (s *Server) handleMarketStructure(w http.ResponseWriter, r *http.Request) {
 		IssuerConcentrations:      concentration,
 		CorridorCount:             corridorCount,
 		ConcentratedCorridorCount: concentratedCount,
-		GeneratedAt:               time.Now().UTC().Format(time.RFC3339),
+		GeneratedAt:               s.clock().Format(time.RFC3339),
 	}
 
 	writeJSON(w, r, http.StatusOK, out)
