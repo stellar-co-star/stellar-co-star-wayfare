@@ -462,3 +462,95 @@ func idsOf(f *Findings) []string {
 	}
 	return out
 }
+
+// nairaTOML is a minimal valid stellar.toml for ngnc.online, the single home
+// domain shared by NGNC, GHSC and KESC (one issuer, one domain).
+const nairaTOML = `NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
+
+[[CURRENCIES]]
+code="NGNC"
+issuer="GASBV6W7GGED66MXEVC7YZHTWWYMSVYEY35USF2HJZBLABLYIFQGXZY6"
+status="live"
+anchor_asset="NGN"
+`
+
+// TestRunnerCachesProfileAcrossSharedDomain is issue #600: NGNC, GHSC and
+// KESC share one issuer and domain, so a sweep measuring all three must
+// resolve the stellar.toml once instead of once per asset.
+func TestRunnerCachesProfileAcrossSharedDomain(t *testing.T) {
+	responses := &countingTransport{recordedTransport: recordedTransport{
+		http.MethodGet + " https://ngnc.online/.well-known/stellar.toml": recordedResponse{
+			body: nairaTOML,
+		},
+	}}
+
+	r := &Runner{
+		Resolver: &anchor.Resolver{HTTPClient: &http.Client{Transport: responses}},
+	}
+
+	// Capture the subjects each asset's check saw, via a shared slice.
+	var saw []Subject
+	r.Checks = []Check{stubCheck{id: "test.sees-profile", saw: &saw}}
+
+	for _, a := range []asset.Asset{asset.NGNC(), asset.GHSC(), asset.KESC()} {
+		f := r.ForAsset(ctx(), a)
+		if len(f.Checks) != 1 {
+			t.Fatalf("ForAsset(%s) produced %d results, want 1", a.Code, len(f.Checks))
+		}
+	}
+
+	if len(saw) != 3 {
+		t.Fatalf("check ran %d times, want 3 (once per asset)", len(saw))
+	}
+	if responses.calls != 1 {
+		t.Errorf("stellar.toml fetched %d times, want exactly once per domain per sweep",
+			responses.calls)
+	}
+	for _, s := range saw {
+		if s.Profile == nil || s.Profile.Domain != "ngnc.online" {
+			t.Error("subject did not carry the resolved ngnc.online profile")
+		}
+	}
+}
+
+// TestRunnerCachedProfilePreservesFetchTime is issue #600: when a profile is
+// served from the sweep cache, the evidence it produces carries the original
+// fetch time rather than being re-timestamped to now.
+func TestRunnerCachedProfilePreservesFetchTime(t *testing.T) {
+	responses := &countingTransport{recordedTransport: recordedTransport{
+		http.MethodGet + " https://ngnc.online/.well-known/stellar.toml": recordedResponse{
+			body: nairaTOML,
+		},
+	}}
+
+	r := &Runner{
+		Checks:   []Check{AnchorAssetISO4217{}},
+		Resolver: &anchor.Resolver{HTTPClient: &http.Client{Transport: responses}},
+	}
+
+	// First asset on the domain: fetch happens and the profile is cached.
+	first := r.ForAsset(ctx(), asset.NGNC())
+	// Second asset on the same domain: cache hit, no additional fetch.
+	second := r.ForAsset(ctx(), asset.GHSC())
+
+	if responses.calls != 1 {
+		t.Errorf("stellar.toml fetched %d times, want exactly once", responses.calls)
+	}
+
+	evidenceOf := func(f *Findings) time.Time {
+		for _, res := range f.Checks {
+			if len(res.Evidence) > 0 {
+				return res.Evidence[0].ObservedAt
+			}
+		}
+		return time.Time{}
+	}
+
+	firstAt, secondAt := evidenceOf(first), evidenceOf(second)
+	if firstAt.IsZero() {
+		t.Fatal("first result carried no evidence timestamp")
+	}
+	if !secondAt.Equal(firstAt) {
+		t.Errorf("cached profile evidence = %v, want original fetch time %v", secondAt, firstAt)
+	}
+}

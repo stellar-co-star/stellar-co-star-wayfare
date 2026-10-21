@@ -33,6 +33,12 @@ type Runner struct {
 
 	// Timeout bounds the whole sweep for one corridor. Zero means 20s.
 	Timeout time.Duration
+
+	// profileCache holds stellar.toml profiles already resolved this sweep,
+	// keyed by home domain. NGNC, GHSC and KESC share one issuer and domain,
+	// so a sweep measuring all three fetches the document once instead of
+	// once per asset. A cache hit preserves the profile's original FetchedAt.
+	profileCache map[string]*anchor.Profile
 }
 
 // Default returns the project's built-in checks.
@@ -107,8 +113,17 @@ func (r *Runner) ForAsset(ctx context.Context, a asset.Asset) *Findings {
 	// else's document and report confident findings about the wrong anchor.
 	if domain, ok := asset.HomeDomain(a); ok {
 		subject.Domain = domain
-		if profile, err := r.resolver().Resolve(ctx, domain); err == nil {
+		if r.profileCache == nil {
+			r.profileCache = make(map[string]*anchor.Profile)
+		}
+		if profile, cached := r.profileCache[domain]; cached {
+			// Sweep-scoped cache hit: reuse the profile resolved earlier
+			// for another asset on the same domain. One fetch per domain
+			// per sweep, and FetchedAt stays at the original fetch time.
 			subject.Profile = profile
+		} else if profile, err := r.resolver().Resolve(ctx, domain); err == nil {
+			subject.Profile = profile
+			r.profileCache[domain] = profile
 		}
 		// A resolve failure is left as a nil profile on purpose. The
 		// checks that need one say so individually, with a reason, which
