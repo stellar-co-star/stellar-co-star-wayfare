@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -174,6 +175,103 @@ func TestRunOnceIsIdempotentUnderReRun(t *testing.T) {
 	}
 	if err := store.Verify(context.Background(), "USDC-NGNC"); err != nil {
 		t.Errorf("chain does not verify after repeated runs: %v", err)
+	}
+}
+
+func TestSchedulerAppendConcurrentWithFileStoreReaders(t *testing.T) {
+	store, err := runstore.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	scheduler := schedulerOver(t, "usdc-ngnc", asset.NGNC(), "NGN", "1350.2568", store)
+
+	const readerCount = 4
+	const sweepCount = 4
+	start := make(chan struct{})
+	ready := make(chan struct{}, readerCount)
+	done := make(chan struct{})
+	var readers sync.WaitGroup
+	readers.Add(readerCount)
+	for i := 0; i < readerCount; i++ {
+		go func() {
+			defer readers.Done()
+			<-start
+			assertReadableRunstore(t, store)
+			ready <- struct{}{}
+			for {
+				select {
+				case <-done:
+					return
+				default:
+					assertReadableRunstore(t, store)
+				}
+			}
+		}()
+	}
+	close(start)
+	for i := 0; i < readerCount; i++ {
+		<-ready
+	}
+	for i := 0; i < sweepCount; i++ {
+		if err := scheduler.RunOnce(context.Background()); err != nil {
+			t.Fatalf("RunOnce %d: %v", i, err)
+		}
+	}
+	close(done)
+	readers.Wait()
+
+	all, err := store.All(context.Background(), "USDC-NGNC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != sweepCount {
+		t.Fatalf("All returned %d records, want %d", len(all), sweepCount)
+	}
+	if err := store.Verify(context.Background(), "USDC-NGNC"); err != nil {
+		t.Errorf("chain after concurrent scheduler writes does not verify: %v", err)
+	}
+}
+
+func assertReadableRunstore(t *testing.T, store runstore.Store) {
+	t.Helper()
+	ctx := context.Background()
+
+	latest, err := store.Latest(ctx, "USDC-NGNC")
+	if err != nil {
+		t.Errorf("Latest: %v", err)
+	} else if latest != nil {
+		if err := latest.VerifySelf(); err != nil {
+			t.Errorf("Latest returned a partial record: %v", err)
+		}
+	}
+
+	recent, err := store.Recent(ctx, "USDC-NGNC", 3)
+	if err != nil {
+		t.Errorf("Recent: %v", err)
+	} else {
+		for i, record := range recent {
+			if err := record.VerifySelf(); err != nil {
+				t.Errorf("Recent record %d is partial: %v", i, err)
+			}
+			if i > 0 && (recent[i-1].Seq != record.Seq+1 || recent[i].Hash != recent[i-1].PrevHash) {
+				t.Errorf("Recent records are not a complete descending chain: seq %d then %d",
+					recent[i-1].Seq, record.Seq)
+			}
+		}
+	}
+
+	all, err := store.All(ctx, "USDC-NGNC")
+	if err != nil {
+		t.Errorf("All: %v", err)
+		return
+	}
+	for i, record := range all {
+		if err := record.VerifySelf(); err != nil {
+			t.Errorf("All record %d is partial: %v", i, err)
+		}
+		if i > 0 && record.PrevHash != all[i-1].Hash {
+			t.Errorf("All has a broken link between seq %d and %d", all[i-1].Seq, record.Seq)
+		}
 	}
 }
 
