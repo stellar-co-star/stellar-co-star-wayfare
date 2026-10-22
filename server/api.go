@@ -51,8 +51,10 @@ type Server struct {
 	// only which is tried first.
 	HistoryFirst bool
 
-	// Timeout bounds a single corridor measurement. A full ladder is a
-	// dozen round trips to Horizon, so this is generous by HTTP standards.
+	// Timeout bounds a single corridor measurement. One Horizon call per
+	// rung, plus a two-call slippage probe on each rung above the probe
+	// threshold, so the count scales with route.DefaultSizes rather than
+	// staying a fixed dozen; this is still generous by HTTP standards.
 	// It is the ceiling: the budget a request actually gets is derived from
 	// its rung count (see budgetFor) and never exceeds this.
 	Timeout time.Duration
