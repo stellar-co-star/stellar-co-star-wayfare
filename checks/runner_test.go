@@ -432,6 +432,10 @@ func TestRunnerHandsTheClientToDefaultChecks(t *testing.T) {
 			if c.HTTPClient != client {
 				t.Error("SEP24InfoListsAsset did not receive the runner's client")
 			}
+		case SEP6InfoListsAsset:
+			if c.HTTPClient != client {
+				t.Error("SEP6InfoListsAsset did not receive the runner's client")
+			}
 		case IssuerAuthFlags:
 			if c.HTTPClient != client {
 				t.Error("IssuerAuthFlags did not receive the runner's client")
