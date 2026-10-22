@@ -405,6 +405,114 @@ func TestHealthz(t *testing.T) {
 	}
 }
 
+// TestHeadMatchesGetOnHealthAndUI pins the issue #612 contract: HEAD on the
+// health and UI routes returns the same status and headers as GET, with no
+// body. Go's http server suppresses the HEAD body while preserving status and
+// headers, including Content-Length; this test guards against a future method
+// check silently reintroducing a 405 or a body.
+func TestHeadMatchesGetOnHealthAndUI(t *testing.T) {
+	srv := testServer(t, liveNGNCPaths, "1500")
+	for _, path := range []string{"/healthz", "/"} {
+		t.Run(path, func(t *testing.T) {
+			getResp, err := http.Get(srv.URL + path)
+			if err != nil {
+				t.Fatalf("GET %s: %v", path, err)
+			}
+			_, err = io.ReadAll(getResp.Body)
+			getResp.Body.Close()
+			if err != nil {
+				t.Fatalf("reading GET %s: %v", path, err)
+			}
+
+			headReq, err := http.NewRequest(http.MethodHead, srv.URL+path, nil)
+			if err != nil {
+				t.Fatalf("building HEAD %s: %v", path, err)
+			}
+			headResp, err := http.DefaultClient.Do(headReq)
+			if err != nil {
+				t.Fatalf("HEAD %s: %v", path, err)
+			}
+			headBody, err := io.ReadAll(headResp.Body)
+			headResp.Body.Close()
+			if err != nil {
+				t.Fatalf("reading HEAD %s: %v", path, err)
+			}
+
+			if getResp.StatusCode != http.StatusOK {
+				t.Errorf("GET %s status = %d, want 200", path, getResp.StatusCode)
+			}
+			if headResp.StatusCode != http.StatusOK {
+				t.Errorf("HEAD %s status = %d, want 200", path, headResp.StatusCode)
+			}
+			if headResp.StatusCode != getResp.StatusCode {
+				t.Errorf("HEAD %s status = %d, want GET status %d", path, headResp.StatusCode, getResp.StatusCode)
+			}
+			if len(headBody) != 0 {
+				t.Errorf("HEAD %s returned a %d-byte body; HEAD must carry no body", path, len(headBody))
+			}
+			compareHeaders(t, path, getResp.Header, headResp.Header)
+		})
+	}
+}
+
+// compareHeaders asserts that every header present in the GET response (except
+// Date, which differs per request) is present with the same values in the HEAD
+// response, and vice versa.
+func compareHeaders(t *testing.T, path string, getH, headH http.Header) {
+	t.Helper()
+	for k, vv := range getH {
+		if k == "Date" {
+			continue
+		}
+		hv, ok := headH[k]
+		if !ok {
+			t.Errorf("HEAD %s header %q present in GET (%v) absent in HEAD", path, k, vv)
+			continue
+		}
+		if !equalStringSlices(vv, hv) {
+			t.Errorf("HEAD %s header %q mismatch: GET=%v HEAD=%v", path, k, vv, hv)
+		}
+	}
+	for k := range headH {
+		if k == "Date" {
+			continue
+		}
+		if _, ok := getH[k]; !ok {
+			t.Errorf("HEAD %s header %q (%v) absent in GET", path, k, headH[k])
+		}
+	}
+}
+
+func equalStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// TestNonGetNonHeadRejectedOnHealthAndUI is the negative side of the #612
+// contract: anything that is not GET or HEAD on the health and UI routes is
+// method-not-allowed, matching the convention every other endpoint follows.
+func TestNonGetNonHeadRejectedOnHealthAndUI(t *testing.T) {
+	srv := testServer(t, liveNGNCPaths, "1500")
+	for _, path := range []string{"/healthz", "/"} {
+		t.Run(path, func(t *testing.T) {
+			code, status := errorCode(t, http.MethodPost, srv.URL+path)
+			if code != codeMethodNotAllowed {
+				t.Errorf("POST %s code = %q, want %q", path, code, codeMethodNotAllowed)
+			}
+			if status != http.StatusMethodNotAllowed {
+				t.Errorf("POST %s status = %d, want 405", path, status)
+			}
+		})
+	}
+}
+
 // TestHealthzReportsBuildProvenance pins that /healthz exposes the code and
 // data commits that built the binary, so a consumer can tell which provenance
 // is serving. Dev and test builds are unstamped and report the empty string,
