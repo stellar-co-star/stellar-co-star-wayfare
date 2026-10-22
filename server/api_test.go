@@ -1045,9 +1045,9 @@ func dexClientAt(url string) *dex.Client {
 //
 // It exercises the same composition the live handler uses: a rendered corridor
 // passed through route.WithFindings, exactly as handleCorridor calls it with
-// the checks runner's output. The runner producing metrics is the separate
-// keystone (issue #49); the point here is that when it lands, the wire is
-// already pinned.
+// the checks runner's output. The runner now produces metrics (#577), so this
+// test pins the shape they cross the wire in rather than a shape that might
+// one day be used.
 func TestFindingsMetricsSchema(t *testing.T) {
 	t.Run("corridor with metrics returns them under findings.metrics", func(t *testing.T) {
 		corridor := route.WithFindings(
@@ -1138,6 +1138,57 @@ func TestFindingsMetricsSchema(t *testing.T) {
 			t.Error("findings.metrics must be absent when no metric ran — presence would read as \"measured, nothing found\"")
 		}
 	})
+}
+
+// TestLiveCorridorCarriesMetrics is the acceptance criterion for #577 on the
+// server side: a live response must carry a non-empty findings.metrics block,
+// not merely a shape able to hold one. The runner is pointed at a Horizon that
+// serves an order book, so the default metric set measures a value instead of
+// reporting undetermined for a fetch that never happened.
+func TestLiveCorridorCarriesMetrics(t *testing.T) {
+	horizon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(r.URL.Path, "/order_book") {
+			_, _ = w.Write([]byte(`{"bids":[{"price":"0.0007400","amount":"100.0"}],"asks":[{"price":"0.0007600","amount":"100.0"}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(liveNGNCPaths))
+	}))
+	t.Cleanup(horizon.Close)
+
+	s := &Server{
+		Engine: &route.Engine{
+			DEX: &dex.Client{HorizonURL: horizon.URL},
+			RefRate: refrate.NewStatic(map[string]decimal.Decimal{
+				"USD/NGN": decimal.RequireFromString("1500"),
+			}),
+		},
+		// The explicit client bypasses the guarded default so the mock
+		// Horizon is reachable, exactly as a snapshot replayer does.
+		Checks: &checks.Runner{HorizonURL: horizon.URL, HTTPClient: horizon.Client()},
+	}
+	api := httptest.NewServer(s.Handler())
+	t.Cleanup(api.Close)
+
+	corridor := getCorridor(t, api.URL+"/api/corridor?to=NGNC&live=1&sizes=100")
+	if corridor.Findings == nil {
+		t.Fatal("the live response carries no findings block")
+	}
+	if len(corridor.Findings.Metrics) == 0 {
+		t.Fatal("the live response carries no findings.metrics; a metric ran " +
+			"nowhere on the production path")
+	}
+
+	var sawSpread bool
+	for _, m := range corridor.Findings.Metrics {
+		if m.ID == "spread.bid-ask" && m.Determined && m.Value != "" {
+			sawSpread = true
+		}
+	}
+	if !sawSpread {
+		t.Errorf("findings.metrics = %v, want a determined spread.bid-ask from the "+
+			"served order book", corridor.Findings.Metrics)
+	}
 }
 
 // metricsSchemaFixture returns findings carrying one determined metric and one

@@ -10,8 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/anchor"
 	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/asset"
+	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/refrate"
 )
 
 // unregistered is an asset with no verified home domain, so ForAsset does not
@@ -451,6 +454,148 @@ func TestRunnerHandsTheClientToDefaultChecks(t *testing.T) {
 	} else if _, err := got.Get("http://127.0.0.1:1/"); err == nil ||
 		!strings.Contains(err.Error(), "refusing to") {
 		t.Errorf("the default client must be the guarded one; got %v", err)
+	}
+}
+
+// stubMetric is a corridor metric whose result the test controls. It records
+// the subjects it saw so a test can assert what the runner populated.
+type stubMetric struct {
+	id     string
+	result MetricResult
+	saw    *[]Subject
+}
+
+func (m stubMetric) Describe() Descriptor {
+	return Descriptor{
+		ID: m.id, Scope: ScopeCorridor, Venue: VenueOrderBook, Title: m.id,
+		CanDetermine: "the stub decides", CannotDetermine: "the stub decides not to",
+	}
+}
+
+func (m stubMetric) Run(_ context.Context, s Subject) MetricResult {
+	if m.saw != nil {
+		*m.saw = append(*m.saw, s)
+	}
+	res := m.result
+	res.ID = m.id
+	return res
+}
+
+// TestRunnerForCorridorRunsMetrics covers the wiring #577 was filed about: a
+// corridor sweep must reach a Metric, and findings.metrics must be non-empty.
+func TestRunnerForCorridorRunsMetrics(t *testing.T) {
+	var saw []Subject
+	r := &Runner{
+		Checks: []Check{stubCheck{id: "test.check", result: Pass(Descriptor{ID: "test.check"}, Subject{}, "ok")}},
+		Metrics: []Metric{stubMetric{
+			id:  "test.metric",
+			saw: &saw,
+			result: MetricValue(Descriptor{ID: "test.metric"}, Subject{},
+				decimal.NewFromInt(7), UnitCount, "seven"),
+		}},
+	}
+
+	f := r.ForCorridor(ctx(), Corridor{Send: asset.USDC(), Receive: unregistered()})
+
+	if len(f.Metrics) != 1 || f.Metrics[0].ID != "test.metric" {
+		t.Fatalf("ForCorridor produced %d metrics; a corridor sweep must run the "+
+			"configured metric", len(f.Metrics))
+	}
+	if !f.Metrics[0].Determined || f.Metrics[0].Value.IntPart() != 7 {
+		t.Errorf("metric result = %+v, want determined 7", f.Metrics[0])
+	}
+	if len(f.Checks) != 1 {
+		t.Errorf("ForCorridor produced %d checks, want 1 — checks still run", len(f.Checks))
+	}
+
+	// The subject a corridor metric receives is the pair, not the receive
+	// asset alone: the metric layer was unusable until Send/Receive were
+	// populated.
+	if len(saw) != 1 {
+		t.Fatalf("metric saw %d subjects, want 1", len(saw))
+	}
+	if saw[0].Send.Code != "USDC" || saw[0].Receive.Code != "TESTC" {
+		t.Errorf("metric subject pair = %s -> %s, want USDC -> TESTC",
+			saw[0].Send.Code, saw[0].Receive.Code)
+	}
+}
+
+// TestRunnerForCorridorDefaultsToAMetricSet pins the fallback: a runner with no
+// metrics configured measures the default set, so an unconfigured deployment
+// still publishes quantities rather than an empty block.
+func TestRunnerForCorridorDefaultsToAMetricSet(t *testing.T) {
+	r := &Runner{}
+	got := r.DefaultMetrics(Corridor{})
+	if len(got) == 0 {
+		t.Fatal("a runner with no metrics must fall back to the default set")
+	}
+	for _, m := range got {
+		if err := m.Describe().ValidateAsMetric(); err != nil {
+			t.Errorf("default metric %q is invalid: %v", m.Describe().ID, err)
+		}
+	}
+}
+
+// TestRunnerForAssetDoesNotMeasureMetrics keeps the single-asset path
+// checks-only. A corridor metric needs a pair, and ForAsset has none, so it
+// must not invent one or silently run a metric against a half-populated
+// subject.
+func TestRunnerForAssetDoesNotMeasureMetrics(t *testing.T) {
+	r := &Runner{
+		Checks:  []Check{stubCheck{id: "test.check", result: Pass(Descriptor{ID: "test.check"}, Subject{}, "ok")}},
+		Metrics: []Metric{stubMetric{id: "test.metric", result: MetricValue(Descriptor{ID: "test.metric"}, Subject{}, decimal.Zero, UnitCount, "zero")}},
+	}
+	if f := r.ForAsset(ctx(), unregistered()); len(f.Metrics) != 0 {
+		t.Errorf("ForAsset ran %d metrics; the single-asset path must stay "+
+			"checks-only", len(f.Metrics))
+	}
+}
+
+// TestRunnerMetricsAreOptOutable covers the explicit empty slice: a caller that
+// has its own request budget must be able to measure no metrics at all, and
+// that is distinct from "use the defaults".
+func TestRunnerMetricsAreOptOutable(t *testing.T) {
+	r := &Runner{
+		Checks:  []Check{stubCheck{id: "test.check", result: Pass(Descriptor{ID: "test.check"}, Subject{}, "ok")}},
+		Metrics: []Metric{},
+	}
+	if f := r.ForCorridor(ctx(), Corridor{Send: asset.USDC(), Receive: unregistered()}); len(f.Metrics) != 0 {
+		t.Errorf("an explicitly empty metric set produced %d metrics", len(f.Metrics))
+	}
+}
+
+// TestRunnerForCorridorPassesTheLadderContext pins the fields the metrics were
+// written against. A book metric cannot tell a structural absence from an idle
+// market without Integrity, and a reference-derived metric must not score
+// against a malfunctioning benchmark.
+func TestRunnerForCorridorPassesTheLadderContext(t *testing.T) {
+	var saw []Subject
+	r := &Runner{
+		Checks: []Check{stubCheck{id: "test.check", result: Pass(Descriptor{ID: "test.check"}, Subject{}, "ok")}},
+		Metrics: []Metric{stubMetric{
+			id: "test.metric", saw: &saw,
+			result: MetricValue(Descriptor{ID: "test.metric"}, Subject{}, decimal.Zero, UnitCount, "zero"),
+		}},
+	}
+	r.ForCorridor(ctx(), Corridor{
+		Send:       asset.USDC(),
+		Receive:    unregistered(),
+		Integrity:  "DERIVATIVE",
+		Underlying: asset.NGNC(),
+		Reference:  refrate.Rate{Agreement: refrate.AgreementMalfunction},
+	})
+
+	if len(saw) != 1 {
+		t.Fatalf("metric saw %d subjects, want 1", len(saw))
+	}
+	if saw[0].Integrity != "DERIVATIVE" {
+		t.Errorf("Integrity = %q, want DERIVATIVE", saw[0].Integrity)
+	}
+	if saw[0].Underlying.Code != "NGNC" {
+		t.Errorf("Underlying = %q, want NGNC", saw[0].Underlying.Code)
+	}
+	if saw[0].ReferenceAgreement != "MALFUNCTION" {
+		t.Errorf("ReferenceAgreement = %q, want MALFUNCTION", saw[0].ReferenceAgreement)
 	}
 }
 

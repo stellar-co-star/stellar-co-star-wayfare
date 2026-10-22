@@ -7,6 +7,8 @@ import (
 
 	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/anchor"
 	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/asset"
+	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/dex"
+	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/refrate"
 )
 
 // Runner resolves a subject and runs a set of checks against it.
@@ -18,6 +20,15 @@ import (
 type Runner struct {
 	// Checks are run in order. Empty means Default().
 	Checks []Check
+
+	// Metrics are measured after the checks, over the same subject. Nil means
+	// DefaultMetrics; a non-nil empty slice means "measure nothing", which is
+	// how a caller opts out of a set that costs upstream requests.
+	//
+	// Metrics are only run by ForCorridor: a corridor metric answers a
+	// question about a pair, so the single-asset ForAsset path has nothing to
+	// measure and stays checks-only. See docs/adding-a-metric.md.
+	Metrics []Metric
 
 	// Resolver fetches an anchor's stellar.toml. Nil means a default
 	// resolver; supplying one with a snapshot-backed HTTP client is what
@@ -61,11 +72,78 @@ func (r *Runner) Default() []Check {
 	}
 }
 
+// Corridor is a measured corridor a runner is qualifying, beyond the pair
+// itself.
+//
+// It carries what the ladder already established so a metric can be told it
+// rather than rediscovering it with more upstream requests. Every field is
+// optional in the same sense Subject's are: empty means unknown, and a metric
+// reports undetermined rather than inferring.
+type Corridor struct {
+	// Send and Receive are the corridor's pair.
+	Send    asset.Asset
+	Receive asset.Asset
+
+	// Integrity is the ladder's structural classification — "DIRECT",
+	// "DERIVATIVE", "NO-MARKET", or empty when the ladder did not
+	// establish one.
+	Integrity string
+
+	// Underlying is the direct pair a DERIVATIVE corridor's paths actually
+	// traverse, when the caller has one to offer. Empty leaves a DERIVATIVE
+	// corridor's book metrics undetermined rather than guessing a pair.
+	Underlying asset.Asset
+
+	// Reference is the benchmark the ladder scored against. Metrics derived
+	// against a reference report undetermined when it is unscorable, and
+	// short-circuit before any network call.
+	Reference refrate.Rate
+}
+
 func (r *Runner) checks() []Check {
 	if len(r.Checks) > 0 {
 		return r.Checks
 	}
 	return r.Default()
+}
+
+// metrics returns the metrics a sweep runs: the configured set, or the default
+// set when none was configured.
+func (r *Runner) metrics(c Corridor) []Metric {
+	if r.Metrics != nil {
+		return r.Metrics
+	}
+	return r.DefaultMetrics(c)
+}
+
+// DefaultMetrics returns the metrics a corridor sweep runs when none were
+// configured.
+//
+// Deliberately small, and deliberately four metrics over one endpoint. The
+// ladder has already spent a dozen pathfinding round trips by the time a
+// corridor reaches this point, so the default set reads the order book and
+// nothing else: spread, concentration, observed depth, and the book's deviation
+// from the reference mid. Each metric fetches the book itself (metrics do not
+// share a fetch, so one cannot silently answer from another's data), which
+// makes the default set four /order_book requests per measured corridor.
+//
+// PriceImpactMetric and DepthMetric.RunExecutable are excluded on purpose: both
+// sweep pathfinding at every probed size, and repeating a ladder that was just
+// priced is a cost a caller should opt into rather than inherit.
+func (r *Runner) DefaultMetrics(c Corridor) []Metric {
+	d := r.dex()
+	return []Metric{
+		SpreadMetric{DEX: d},
+		ConcentrationMetric{DEX: d},
+		DepthMetric{DEX: d},
+		DeviationMetric{DEX: d, Reference: c.Reference},
+	}
+}
+
+// dex returns the Horizon client metrics use, built from the same transport the
+// checks use so a snapshot replayer serves metrics from the recording too.
+func (r *Runner) dex() *dex.Client {
+	return &dex.Client{HorizonURL: r.HorizonURL, HTTPClient: r.client()}
 }
 
 func (r *Runner) timeout() time.Duration {
@@ -106,6 +184,45 @@ func (r *Runner) ForAsset(ctx context.Context, a asset.Asset) *Findings {
 	ctx, cancel := context.WithTimeout(ctx, r.timeout())
 	defer cancel()
 
+	f := &Findings{}
+	for _, res := range RunAll(ctx, r.checks(), r.subject(ctx, a)) {
+		f.Add(res)
+	}
+	return f
+}
+
+// ForCorridor runs every check and every metric against one measured corridor.
+//
+// Checks still run against the receive asset, exactly as ForAsset runs them: a
+// check asks a question about the anchor that issues the asset the user ends up
+// holding. Metrics run against the pair, because that is the subject a quantity
+// has. Both land in the same Findings, and neither can move the corridor's
+// headline — the composition rule is enforced by Findings having no path back
+// into the engine (ADR 002).
+func (r *Runner) ForCorridor(ctx context.Context, c Corridor) *Findings {
+	ctx, cancel := context.WithTimeout(ctx, r.timeout())
+	defer cancel()
+
+	subject := r.subject(ctx, c.Receive)
+	subject.Send = c.Send
+	subject.Receive = c.Receive
+	subject.Integrity = c.Integrity
+	subject.Underlying = c.Underlying
+	subject.ReferenceAgreement = c.Reference.Agreement.String()
+
+	f := &Findings{}
+	for _, res := range RunAll(ctx, r.checks(), subject) {
+		f.Add(res)
+	}
+	for _, m := range r.metrics(c) {
+		f.AddMetric(RunMetric(ctx, m, subject))
+	}
+	return f
+}
+
+// subject resolves what the checks and metrics need to know about an asset's
+// anchor once per sweep.
+func (r *Runner) subject(ctx context.Context, a asset.Asset) Subject {
 	subject := Subject{Asset: a}
 
 	// Resolve the publishing domain only when the association was verified.
@@ -130,10 +247,5 @@ func (r *Runner) ForAsset(ctx context.Context, a asset.Asset) *Findings {
 		// is more useful than one sweep-level error standing in for
 		// several different questions.
 	}
-
-	f := &Findings{}
-	for _, res := range RunAll(ctx, r.checks(), subject) {
-		f.Add(res)
-	}
-	return f
+	return subject
 }
