@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -274,6 +275,7 @@ func TestRunSweepsImmediately(t *testing.T) {
 	}
 	s := schedulerOver(t, "usdc-ngnc", asset.NGNC(), "NGN", "1350.2568", store)
 	s.Interval = time.Hour
+	s.Jitter = time.Hour
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -288,6 +290,39 @@ func TestRunSweepsImmediately(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Error("no measurement recorded; the first sweep waited for the interval")
+}
+
+func TestSchedulerJitterIsDeterministicAndBounded(t *testing.T) {
+	seed := int64(42)
+	scheduler := &Scheduler{
+		Interval:   6 * time.Hour,
+		Jitter:     5 * time.Minute,
+		JitterSeed: &seed,
+	}
+	first := scheduler.randomSource()
+	second := scheduler.randomSource()
+	var varied bool
+	for i := 0; i < 10; i++ {
+		got := scheduler.nextInterval(first)
+		replay := scheduler.nextInterval(second)
+		if got != replay {
+			t.Fatalf("seeded interval %d = %s, replay = %s", i, got, replay)
+		}
+		if got < scheduler.Interval || got >= scheduler.Interval+scheduler.Jitter {
+			t.Errorf("interval %s is outside [%s, %s)", got, scheduler.Interval, scheduler.Interval+scheduler.Jitter)
+		}
+		varied = varied || got > scheduler.Interval
+	}
+	if !varied {
+		t.Fatal("seeded jitter never added an offset")
+	}
+}
+
+func TestSchedulerZeroJitterKeepsBaseInterval(t *testing.T) {
+	scheduler := &Scheduler{Interval: 3 * time.Hour}
+	if got := scheduler.nextInterval(rand.New(rand.NewSource(1))); got != scheduler.Interval {
+		t.Errorf("interval with zero jitter = %s, want %s", got, scheduler.Interval)
+	}
 }
 
 // TestSchedulerNeedsAnEngine guards the obvious misconfiguration.

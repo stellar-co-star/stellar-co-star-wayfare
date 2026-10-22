@@ -32,6 +32,13 @@ settings below exist to prevent it.
 
 ## Two ways to run it continuously
 
+The hosted scheduler runs its first sweep immediately. Each later sweep waits
+the configured `-schedule` interval plus a random delay in the range
+`[0, -schedule-jitter)`. The defaults are six hours and five minutes; setting
+`-schedule-jitter=0` disables the offset. The interval is the base gap, not a
+fixed wall-clock time, and the random delay is selected separately for each
+process run.
+
 **Scheduled CI** (`.github/workflows/measure.yml`) — a workflow measures every
 six hours and commits the hash-chained store back to the repository. No host,
 no bill, and one repository secret ([below](#running-the-ci-path)).
