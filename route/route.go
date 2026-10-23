@@ -34,6 +34,7 @@ import (
 	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/asset"
 	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/dex"
 	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/refrate"
+	"github.com/stellar-co-star/stellar-co-star-stellar-co-star-stellar-co-star-wayfare/sep38"
 )
 
 // Verdict grades a route against the reference mid-market rate.
@@ -258,6 +259,10 @@ type Quote struct {
 
 	// Warnings are conditions the user must see before acting.
 	Warnings []string
+
+	// SEP38Quote carries the normalised anchor quote used to measure its
+	// buy-asset-denominated fee in the cost decomposition.
+	SEP38Quote *sep38.Quote
 
 	QuotedAt time.Time
 }
